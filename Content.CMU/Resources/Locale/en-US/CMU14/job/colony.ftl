@@ -162,6 +162,9 @@ au14-job-prefix-civilianminer = MIN
 au14-job-name-civiliancwpsranger = CWPS Ranger
 au14-job-description-civiliancwpsranger = You're a Ranger with the Colonial Wilderness Preservation Service. Enforce colony law, protect the ecosystem and keep the locals in check. No poaching, no dumping and no overfishing will happen on your watch. (Available on LV-112)
 au14-job-prefix-civiliancwpsranger = CWPS
+au14-job-name-civiliancwpsmarshal = CWPS Chief Ranger
+au14-job-description-civiliancwpsmarshal = You lead the rangers of the Colonial Wilderness Preservation Service. Direct your rangers, enforce colony law and keep the reserve and its wildlife safe. (Available on LV-112)
+au14-job-prefix-civiliancwpsmarshal = CWPSCR
 
 au14-job-name-civiliannspaConstable = NSPA Constable
 au14-job-description-civiliannspaConstable = You're a constable of the Neroid Sector Policing Authority. Provide the colony with rule of law and execute arrests and warrants. (Role avalible on LV-759)
@@ -170,6 +173,8 @@ au14-job-prefix-civiliannspaConstable = NSPA
 au14-job-name-civilianpapofficer = PAP Officer
 au14-job-description-civilianpapofficer = You're an Officer of the UPP People's Armed Police. Provide the colony with rule of law and execute arrests and warrants.
 au14-job-prefix-civilianpapofficer = PAP
+
+au14-job-description-informalmsscollaborator = You're an informal collaborator for the Ministry of Space Security. Secretly monitor the colony, report subversive activity, and assist your handler with denunciations.
 
 au14-job-name-civilianheadofservice = Head of Service
 au14-job-description-civilianheadofservice = Ensure stores and services are stocked, kitchens are manned and the colony stays clean. Coordinate with your department and the foreman to ensure the colony's needs are met.
@@ -267,3 +272,6 @@ cmu14-job-prefix-lawyer = LAWR
 cmu14-job-name-ppo = PPO
 cmu14-job-description-ppo = Personal Protection Officer, you are here to protect the VIP.
 cmu14-job-prefix-ppo = PPO
+au14-job-name-civiliancmbdetective = CMB Detective
+au14-job-description-civiliancmbdetective = You're the Colonial Marshal Bureau's detective. Work crime scenes with your forensic scanner and camera, match evidence against the colony's records and firearm registry, and build the case the Marshal and deputies act on.
+au14-job-prefix-cmbdetective = CMBDET

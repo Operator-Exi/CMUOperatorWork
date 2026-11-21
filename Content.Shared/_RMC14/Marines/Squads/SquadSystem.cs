@@ -89,6 +89,7 @@ public sealed partial class SquadSystem : EntitySystem
 
     public override void Initialize()
     {
+        InitializeCardOwnerLifetime(); // CMU14
         _mapToSquadQuery = GetEntityQuery<RMCMapToSquadComponent>();
         _originalRoleQuery = GetEntityQuery<OriginalRoleComponent>();
         _squadArmorWearerQuery = GetEntityQuery<SquadArmorWearerComponent>();
@@ -229,17 +230,22 @@ public sealed partial class SquadSystem : EntitySystem
 
     private void OnSquadMemberEnteredCryo(Entity<SquadMemberComponent> ent, ref EnteredCryostorageEvent args)
     {
-        if (!_originalRoleQuery.TryComp(ent, out var role) || role.Job is not { } jobId)
-            return;
-
-        if (!_squadTeamQuery.TryComp(ent.Comp.Squad, out var squad) ||
-            !squad.Roles.TryGetValue(jobId, out var roles) ||
-            roles <= 0)
-        {
-            return;
-        }
-
-        squad.Roles[jobId] = roles - 1;
+        // CMU14: cryo leaves the body alive on the paused map, so only refunding the slot left cryoed marines
+        // on the squad info manifest. RemoveSquad also refunds the slot, and is the CM13 behavior for cryo.
+        RemoveSquad(ent, null);
+        // CMU14 Begin
+        //if (!_originalRoleQuery.TryComp(ent, out var role) || role.Job is not { } jobId)
+        //    return;
+        //
+        //if (!_squadTeamQuery.TryComp(ent.Comp.Squad, out var squad) ||
+        //    !squad.Roles.TryGetValue(jobId, out var roles) ||
+        //    roles <= 0)
+        //{
+        //    return;
+        //}
+        //
+        //squad.Roles[jobId] = roles - 1;
+        // CMU14 End
     }
 
     private void OnSquadMemberLeftCryo(Entity<SquadMemberComponent> ent, ref LeftCryostorageEvent args)
@@ -1108,7 +1114,7 @@ public sealed partial class SquadSystem : EntitySystem
                 if (HasComp<IdCardComponent>(item) &&
                     !EnsureComp<IdCardOwnerComponent>(item, out var owner))
                 {
-                    owner.Id = uid;
+                    SetCardOwner((item, owner), uid); // CMU14
                 }
             }
 

@@ -274,9 +274,10 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
     /// <summary>
     ///     Builds a catalog snapshot from the nearest ASRS computer matching the department's configured faction.
     /// </summary>
-    private List<DepartmentOrderCatalogCategory> BuildCatalog(EntityUid consoleUid, string asrsFaction)
+    private List<DepartmentOrderCatalogCategory> BuildCatalog(EntityUid consoleUid, DepartmentConsoleComponent department)
     {
         var result = new List<DepartmentOrderCatalogCategory>();
+        AddSupplyCatalog(department, result);
 
         var consoleCoords = _transform.GetMapCoordinates(consoleUid);
         Entity<RequisitionsComputerComponent>? nearest = null;
@@ -285,7 +286,7 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
         var computers = EntityQueryEnumerator<RequisitionsComputerComponent>();
         while (computers.MoveNext(out var compUid, out var comp))
         {
-            if (comp.Faction != asrsFaction)
+            if (comp.Faction != department.AsrsFaction)
                 continue;
 
             var compCoords = _transform.GetMapCoordinates(compUid);
@@ -382,7 +383,7 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
             comp.SalaryOverrides.Remove(rem);
         }
 
-        var catalog = BuildCatalog(uid, comp.AsrsFaction);
+        var catalog = BuildCatalog(uid, comp);
 
         var state = new DepartmentConsoleBuiState(
             comp.DepartmentName,
@@ -591,6 +592,12 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
     /// </summary>
     private void OnOrder(EntityUid uid, DepartmentConsoleComponent comp, DepartmentConsoleOrderBuiMsg msg)
     {
+        if (msg.CategoryIndex == SupplyCategory)
+        {
+            TryBuySupply((uid, comp), msg.Actor, msg.EntryIndex);
+            return;
+        }
+
         // Find the ASRS computer for this department's configured faction
         var consoleCoords = _transform.GetMapCoordinates(uid);
         Entity<RequisitionsComputerComponent>? nearestComputer = null;
@@ -671,6 +678,11 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
 
         elevator.Value.Comp.Orders.Add(deptOrder);
         Dirty(elevator.Value);
+
+        // Department orders are the colony's too, so their guns go on the firearm registry under whoever ordered them.
+        var bought = new Content.Server.CMU14.Requisitions.CMURequisitionsOrderBoughtEvent(elevator.Value,
+            elevator.Value.Comp.Orders.Count - 1, msg.Actor, elevator.Value.Comp.Faction);
+        RaiseLocalEvent(ref bought);
         UpdateAllUiForDepartment(uid, comp);
     }
 
@@ -780,10 +792,28 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
         if (!dept.ColonyManaged)
             return false;
 
-        if (amount <= 0 || amount > _budget.GetBudget())
+        if (!float.IsFinite(amount)
+            || amount <= 0
+            || amount > _budget.GetBudget())
             return false;
 
         _budget.AddToBudget(-amount);
+        dept.DepartmentBudget += amount;
+        UpdateAllUiForDepartment(deptConsoleUid, dept);
+        return true;
+    }
+
+    /// <summary>
+    ///     Transfer credits from the colony ASRS account to a colony-managed department.
+    /// </summary>
+    public bool TransferASRSToDepartment(EntityUid deptConsoleUid, int amount)
+    {
+        if (!TryComp<DepartmentConsoleComponent>(deptConsoleUid, out var dept)
+            || !dept.ColonyManaged
+            || amount <= 0
+            || !_requisitions.TrySpendFunds("colony", amount))
+            return false;
+
         dept.DepartmentBudget += amount;
         UpdateAllUiForDepartment(deptConsoleUid, dept);
         return true;
@@ -794,7 +824,9 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
     /// </summary>
     private void OnWithdraw(EntityUid uid, DepartmentConsoleComponent comp, DepartmentConsoleWithdrawBuiMsg msg)
     {
-        if (msg.Amount <= 0 || msg.Amount > comp.DepartmentBudget)
+        if (!float.IsFinite(msg.Amount)
+            || msg.Amount <= 0
+            || msg.Amount > comp.DepartmentBudget)
             return;
 
         var amount = (int) msg.Amount;
@@ -806,9 +838,9 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
     /// <summary>
     ///     Gets all department consoles for the budget console to list.
     /// </summary>
-    public List<(NetEntity Uid, string Name, float Budget)> GetAllDepartments()
+    public List<BudgetConsoleDepartmentInfo> GetAllDepartments()
     {
-        var result = new List<(NetEntity, string, float)>();
+        var result = new List<BudgetConsoleDepartmentInfo>();
         var seenDepartments = new HashSet<string>();
         var query = EntityQueryEnumerator<DepartmentConsoleComponent>();
         while (query.MoveNext(out var uid, out var dept))
@@ -821,7 +853,7 @@ public sealed partial class DepartmentConsoleSystem : EntitySystem
             if (dept.DepartmentId != null && !seenDepartments.Add(dept.DepartmentId))
                 continue;
 
-            result.Add((GetNetEntity(uid), dept.DepartmentName, dept.DepartmentBudget));
+            result.Add(new BudgetConsoleDepartmentInfo(GetNetEntity(uid), dept.DepartmentName, dept.DepartmentBudget));
         }
         return result;
     }

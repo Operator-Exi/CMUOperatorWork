@@ -112,7 +112,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
-    - NoEnglish
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - CMUProstheticLeftArm
     - CMUProstheticRightArm
     - CMUProstheticLeftLeg

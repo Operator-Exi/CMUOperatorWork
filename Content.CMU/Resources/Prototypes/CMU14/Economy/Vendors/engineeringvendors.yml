@@ -13,7 +13,7 @@
       map: [ "enum.VendingMachineVisualLayers.BaseUnshaded" ]
       shader: unshaded
   - type: AccessReader
-    access: [["CMAccessCombatTechPrep"], ["CMAccessEngineering"], ["CMAccessColonyEngineering"], ["AU14AccessGovforEngineering"], ["AU14AccessOpforEngineering"]]
+    access: [["CMAccessCombatTechPrep"], ["CMAccessEngineering"], ["CMAccessColonyEngineering"], ["AU14AccessGovforEngineering"], ["AU14AccessOpforEngineering"], [ "AU14AccessGovforVehicleCrew" ], [ "AU14AccessOpforVehicleCrew" ]]
   - type: CMAutomatedVendor
     access:
     - "CMAccessCombatTechPrep"
@@ -21,6 +21,8 @@
     - "CMAccessColonyEngineering"
     - "AU14AccessGovforEngineering"
     - "AU14AccessOpforEngineering"
+    - "AU14AccessGovforVehicleCrew"
+    - "AU14AccessOpforVehicleCrew"
     hackable: true
     sections:
     - name: Equipment
@@ -153,6 +155,8 @@
         amount: 5
       - id: CMUCircuitboardRecharger
         amount: 4
+      - id: CMUCircuitboardChemicalRecipeMachine
+        amount: 1
 #      - id: CMCircuitboardDispenserBooze
 #        amount: 2
 #      - id: CMCircuitboardDispenserSoda
@@ -177,17 +181,21 @@
     sections:
     - name: Tools
       entries:
-      - id: RMCCableCoil
-        amount: 15
+      - id: CMUCableThinHVStack
+        amount: 5
+      - id: CMUCableThinMVStack
+        amount: 5
+      - id: CMUCableThinLVStack
+        amount: 5
       - id: CMMultitool
         amount: 6
     - name: Power
       entries:
-      - id: CableHVStack
+      - id: CMUCableThinHVStack
         amount: 6
-      - id: CableMVStack
+      - id: CMUCableThinMVStack
         amount: 6
-      - id: CableApcStack
+      - id: CMUCableThinLVStack
         amount: 6
       - id: CMAPCElectronics
         amount: 4
@@ -212,6 +220,8 @@
       - id: CMSMESMachineCircuitboard
         amount: 1
       - id: CMUCircuitboardRecharger
+        amount: 1
+      - id: CMUCircuitboardChemicalRecipeMachine
         amount: 1
       - id: CMUCrystallizerMachineCircuitboard
         amount: 2
@@ -238,6 +248,10 @@
       - id: Igniter
         amount: 8
       - id: RMCTimerTrigger
+        amount: 4
+      - id: RMCCustomGrenade # CMU14: base custom chemical grenade casing
+        amount: 4
+      - id: ChemicalPayload # CMU14: two-beaker chemical payload
         amount: 4
       - id: ProximitySensor
         amount: 4
@@ -299,6 +313,10 @@
       # Tank transfer valve
       - id: RMCTimerTrigger
         amount: 6
+      - id: RMCCustomGrenade # CMU14: base custom chemical grenade casing
+        amount: 4
+      - id: ChemicalPayload # CMU14: two-beaker chemical payload
+        amount: 4
 
 - type: entity
   parent: CMVendorScience
@@ -317,8 +335,12 @@
       # Roboticist Jumpsuit
     - name: Tools
       entries:
-      - id: RMCCableCoil
-        amount: 15
+      - id: CMUCableThinHVStack
+        amount: 5
+      - id: CMUCableThinMVStack
+        amount: 5
+      - id: CMUCableThinLVStack
+        amount: 5
       - id: SawElectric
         amount: 5
       - id: CMCrowbar

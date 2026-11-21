@@ -14,6 +14,7 @@
 
 - type: thirdParty
   id: UPPGROM
+  allegiance: UPP
   announceAsSurvivors: true
   partyspawn: UPPGROMSpawn
   blacklistedGamemodes:
@@ -21,7 +22,7 @@
     - forceonforce
     - colonyfall
   entrymethod: shuttle
-  dropshippath: /Maps/CMU14/Vehicles/Dropships/rmc_ert_spp_shuttle.yml
+  dropshippath: /Maps/CMU14/Dropships/rmc_ert_spp_shuttle.yml
   weight: 100
   minplayers: 100
   maxplayers: 400
@@ -44,6 +45,7 @@
 
 - type: thirdParty
   id: UPPGROMAlt
+  allegiance: UPP
   announceAsSurvivors: true
   partyspawn: UPPGROMSpawnAlt
   blacklistedGamemodes:
@@ -51,7 +53,7 @@
     - forceonforce
     - colonyfall
   entrymethod: shuttle
-  dropshippath: /Maps/CMU14/Vehicles/Dropships/rmc_ert_spp_shuttle.yml
+  dropshippath: /Maps/CMU14/Dropships/rmc_ert_spp_shuttle.yml
   weight: 100
   minplayers: 25
   maxplayers: 50
@@ -74,6 +76,7 @@
 
 - type: thirdParty
   id: UPPGROMAlt2
+  allegiance: UPP
   announceAsSurvivors: true
   partyspawn: UPPGROMSpawnAlt2
   blacklistedGamemodes:
@@ -81,7 +84,7 @@
     - forceonforce
     - colonyfall
   entrymethod: shuttle
-  dropshippath: /Maps/CMU14/Vehicles/Dropships/rmc_ert_spp_shuttle.yml
+  dropshippath: /Maps/CMU14/Dropships/rmc_ert_spp_shuttle.yml
   weight: 100
   minplayers: 51
   maxplayers: 99

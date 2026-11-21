@@ -1,3 +1,4 @@
+using Content.Client.CMU14.Requisitions; // CMU14
 using System.Linq;
 using System.Diagnostics.CodeAnalysis;
 using Content.Client.Stylesheets;
@@ -55,6 +56,8 @@ public sealed partial class RequisitionsBui(EntityUid owner, Enum uiKey) : Bound
     // CMU14 Hardcode localization Begin: removing hardcode for easy localization in downstreams
     internal static readonly Dictionary<string, string> CategoryLocKeys = new()
     {
+        ["Musical Instruments"] = "cmu-asrs-category-instruments", // CMU14
+        ["Colony Administration"] = "cmu-asrs-category-administration",
         ["Air Defense"] = "rmc-requisitions-category-air-defense",
         ["Ammo"] = "rmc-requisitions-category-ammo",
         ["Ammunition"] = "rmc-requisitions-category-ammunition",
@@ -68,6 +71,7 @@ public sealed partial class RequisitionsBui(EntityUid owner, Enum uiKey) : Bound
         ["Dropship Parts"] = "rmc-requisitions-category-dropship-parts",
         ["Engineering"] = "rmc-requisitions-category-engineering",
         ["Explosives"] = "rmc-requisitions-category-explosives",
+        ["FOB"] = "cmu-requisitions-category-fob",
         ["Food"] = "rmc-requisitions-category-food",
         ["Food and Drinks"] = "rmc-requisitions-category-food-and-drinks",
         ["Furniture"] = "rmc-requisitions-category-furniture",
@@ -87,6 +91,7 @@ public sealed partial class RequisitionsBui(EntityUid owner, Enum uiKey) : Bound
         ["Vehicle Main Modules"] = "rmc-requisitions-category-vehicle-main",
         ["Vehicle Aux Modules"] = "rmc-requisitions-category-vehicle-aux",
         ["Avionics Parts"] = "rmc-requisitions-category-vehicle-avionics",
+        ["Vehicles"] = "cmu-requisitions-category-vehicles", // CMU14: jeep kit crates
         ["Weapons"] = "rmc-requisitions-category-weapons",
         ["WEYSEC Ammo"] = "rmc-requisitions-category-weysec-ammo",
         ["WEYSEC Gear"] = "rmc-requisitions-category-weysec-gear",
@@ -1013,6 +1018,10 @@ public sealed partial class RequisitionsBui(EntityUid owner, Enum uiKey) : Bound
         if (!_stock.TryGetValue((category, order), out var stock))
             return "Stock: unlimited";
 
+        // CMU14: a negative replenishment time means a shared allowance that lasts the entire round.
+        if (stock.SecondsUntilNextReplenish < 0)
+            return Loc.GetString("cmu-fob-round-stock", ("current", stock.Current), ("max", stock.Max));
+
         var refill = stock.Current < stock.Max
             ? $"  +{FormatTime(stock.SecondsUntilNextReplenish)}"
             : string.Empty;
@@ -1037,9 +1046,7 @@ public sealed partial class RequisitionsBui(EntityUid owner, Enum uiKey) : Bound
         if (!_prototypes.TryIndex<EntityPrototype>(entry.Crate, out var prototype))
             return;
 
-        texture.Textures = EntMan.System<SpriteSystem>().GetPrototypeTextures(prototype)
-            .Select(layer => layer.Default)
-            .ToList();
+        texture.Textures = RequisitionsIconCache.Get(EntMan.System<SpriteSystem>(), prototype); // CMU14
 
         if (prototype.TryComp<SpriteComponent>(CompName.Get<SpriteComponent>(EntMan.ComponentFactory), out var sprite) &&
             sprite.AllLayers.FirstOrDefault() is { } firstLayer)

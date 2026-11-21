@@ -8,6 +8,7 @@ using Content.Shared.CMU14.Medical.Injuries.Wounds;
 using Content.Shared.CMU14.Yautja;
 using Content.Shared._RMC14.Damage;
 using Content.Shared._RMC14.Medical.Wounds;
+using Content.Shared._RMC14.Synth;
 using Content.Shared.Body;
 using Content.Shared.Body.Part;
 using Content.Shared.Damage;
@@ -16,6 +17,8 @@ using Content.Shared.Damage.Systems;
 using Content.Shared.Damage.Prototypes;
 using Content.Shared.FixedPoint;
 using Content.Shared.Humanoid;
+using Content.Shared.Mobs;
+using Content.Shared.Mobs.Components;
 using Content.Shared.Throwing;
 using Robust.Shared.Audio;
 using Robust.Shared.Audio.Systems;
@@ -84,6 +87,15 @@ public sealed partial class BodyPartSeveranceSystem : EntitySystem
             || partComp.PartType != args.Type)
             return;
 
+        // cmss13 droplimb skips NO_PERMANENT_DAMAGE bodies, but a butcher or surgeon still gets the limb
+        if (!args.Surgical &&
+            HasComp<CMUNoPermanentDamageComponent>(args.Body) &&
+            (!TryComp(args.Body, out MobStateComponent? mobState) || mobState.CurrentState != MobState.Dead))
+        {
+            args.Cancelled = true;
+            return;
+        }
+
         if (!_cfg.GetCVar(CMUMedicalCCVars.Enabled)
             || !_cfg.GetCVar(CMUMedicalCCVars.BodyPartEnabled))
         {
@@ -148,7 +160,9 @@ public sealed partial class BodyPartSeveranceSystem : EntitySystem
             FlingPartFromBody(args.Body, detachedBody);
 
             // Losing a robotic part, or anything off a robotic limb, leaves no flesh to bleed from.
-            var roboticStump = HasComp<CMURoboticLimbComponent>(args.Part) ||
+            // A synth is all machine, and nothing on one can cauterize a stump shut.
+            var roboticStump = HasComp<SynthComponent>(args.Body) ||
+                               HasComp<CMURoboticLimbComponent>(args.Part) ||
                                stumpParent is { } stumpOwner && HasComp<CMURoboticLimbComponent>(stumpOwner);
             if (!roboticStump)
             {

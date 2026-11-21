@@ -9,6 +9,8 @@
 
 - type: thirdParty
   id: Migrant_UPP
+  speaksColonyLanguage: true
+  speaksCallerLanguage: true
   announceAsSurvivors: true
   partyspawn: RuMCMigrantSpawn
   whitelistedGamemodes:
@@ -16,7 +18,7 @@
     - forceonforce
     - colonyfall
   entrymethod: shuttle
-  dropshippath: /Maps/CMU14/Vehicles/Dropships/rmc_ert_spp_shuttle.yml
+  dropshippath: /Maps/CMU14/Dropships/rmc_ert_spp_shuttle.yml
   weight: 0
   minplayers: 0
   maxplayers: 400

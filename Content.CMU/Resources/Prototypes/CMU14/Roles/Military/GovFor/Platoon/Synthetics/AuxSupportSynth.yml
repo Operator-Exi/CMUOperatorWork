@@ -82,6 +82,7 @@
         RMCSkillIntel: 2
         RMCSkillDomestics: 2
         RMCSkillNavigations: 1
+        CMUSkillATGM: 1
     UPP:
     - type: Skills
       skills:
@@ -104,6 +105,7 @@
         RMCSkillIntel: 2
         RMCSkillDomestics: 2
         RMCSkillNavigations: 1
+        CMUSkillATGM: 1
 
   requirements:
   - !type:TraitsRequirement
@@ -113,7 +115,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
-    - NoEnglish
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - CMUProstheticLeftArm
     - CMUProstheticRightArm
     - CMUProstheticLeftLeg
@@ -162,7 +169,7 @@
 
 - type: roleLoadout
   id: JobAU14JobGOVFORAuxSupportSynth
-  points: 30
+  points: 45
   groups:
   - GOVFORSynthSpecializationAU14
   - SynthBackpackAU14
@@ -249,6 +256,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - CMUBadLeg
   ranks:
     RMC_WarrantOfficer1:
@@ -280,6 +293,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - CMUBadLeg
   ranks:
     UPP_SeniorWarrantOfficer:

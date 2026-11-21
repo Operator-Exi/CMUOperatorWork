@@ -34,7 +34,7 @@ rider-grip-desc = How tightly the grip. Abilities spend, resistance drains.
 
 rider-whisper-wrap = Something whispers: { $text }
 rider-whisper-echo = You whisper to your host: { $text }
-rider-whisper-ghost = {"["}color=#3cb371][font size=14][bold]Rider Whisper ({$rider} -> {$host}):[/bold] "{$message}"[/font][/color]
+rider-whisper-ghost = {"["}color=#3cb371][font size=10][bold]Rider Whisper ({$rider} -> {$host}):[/bold]"{$message}"[/font][/color]
 rider-speak-blocked = Their throat will not answer.
 
 rider-punish-host = Something burns behind your eyes!
@@ -105,6 +105,8 @@ rider-extracted = A slick, finger-length thing drops out of the incision and hit
 rider-surge-refused = Only a willing host can be rewarded.
 rider-surge-host = A cold flush floods your chest - pain gone, heartbeat huge, hands steady. The thing did this.
 rider-coax-host = Your aches quiet down and your wounds itch as they close. Something inside you did this.
+ent-ActionRiderSustain = Sustain
+    .desc = Heal your own injuries. While riding, spend 20 grip to heal both yourself and your host.
 rider-sustain-host = Warmth spreads from your spine into every hurt. Bruises you never saw fade, and the pull inside you goes deeper, holding you together.
 
 rider-flavor-hitchhiker = Tonight you are a hitchhiker: still be riding someone when the round ends. Patience is the whole game.

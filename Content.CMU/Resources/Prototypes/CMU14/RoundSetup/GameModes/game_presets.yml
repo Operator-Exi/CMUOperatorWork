@@ -1,10 +1,11 @@
 - type: gamePreset
   id: ColonyFall
+  allowDiggingDown: false
   alias:
   - colonyfall
   name: cmu-gamemode-colonyfall-name
   showInVote: true
-  maxPlayers: 45
+  maxPlayers: 65
   description: cmu-gamemode-colonyfall-desc
   burrowedLarvaEnabled: false
   thirdPartyAutoSpawn: true
@@ -13,43 +14,47 @@
   maxThirdParties: 2
   supportedPlanets:
   - SharedPlanetPool
-# - AUPlanetLV624 # Green Hell # missing threat spawns, scenario fails
   rules:
   - AuVoteRule
   - ColonyAntags
 
 - type: gamePreset
   id: DistressSignal
+  allowDiggingDown: false
   alias:
   - distresssignal
   name: cmu-gamemode-distresssignal-name
   showInVote: true
   description: cmu-gamemode-distresssignal-desc
   requiresGovforVote: true
+  strandedYautjaEnabled: true
+  thirdPartyForceShuttle: true
   dropshipFabricatorStartingPoints: 18000
   supportedPlanets:
 # - CMUPlanetStableGarrisonRedux # Govfor can hunker-down in Garrison; can be rushed by threats
 # - CMUPlanetStableGarrisonDistress # govfor spawns planetside
 # - AUPlanetShepherdsPride # lot of forests/chokes
-# - CMUPlanetHopesRetreat # govfor spawns planetside
+  - CMUPlanetHopesRetreat
   - AUPlanetBosenmoriBasho
-# - AUPlanetLV747 # Solaris Gulch
 # - AUPlanetLV759 # Hybrisa Metro # missing threat spawns, scenario fails
   - AUPlanetLV327 # Port Nereid
   - AUPlanetSorokyne
-  - AUPlanetCorsatStation
+# - AUPlanetCorsatStation # temporarily removed
   - CMUPlanetSolarisRidge
   - CMUPlanetFortMcNeil
   - AUPlanetTrijent
-  - AuPlanetKutjevo
+# - AuPlanetKutjevo # temporarily removed
   - AuPlanetShivasSnowball
-  - AuPlanetChances
+# - AuPlanetChances # temporarily removed
+  - CMUPlanetLV624
+  - CMUPlanetVaradero
   rules:
   - AuVoteRule
   - PlatoonSpawn
   - RemoveAllJobs
   - AddGovfor
-  - AddGovforCorrespondent
+  - AddGovforAuxiliaryStaffDistress
+  - DistressAntags
 
 - type: gamePreset
   id: Insurgency
@@ -66,29 +71,32 @@
   thirdPartyRatio: 0.15
   maxThirdParties: 3
   dropshipFabricatorStartingPoints: 7500
+  # a cell lives or dies on not being found; radio DF made every transmission a giveaway
+  anprcDirectionFinding: false
   supportedPlanets:
   - SharedPlanetPool
-# - AUPlanetLV624 # Green Hell # map lacks medical, dropships - govfor spawns outside base
   rules:
   - AuVoteRule
   - PlatoonSpawn
   - AddGovfor
-  - AddGovforCorrespondent
+  - AddGovforAuxiliaryStaff
   - AddClf
   - ColonyAntags
   - InsWinConditionsRule
 
 - type: gamePreset
   id: ForceOnForce
+  allowDiggingDown: false
   alias:
   - forceonforce
   name: cmu-gamemode-forceonforce-name
   showInVote: true
   description: cmu-gamemode-forceonforce-desc
-  minPlayers: 80
+  minPlayers: 100
   burrowedLarvaEnabled: false
   requiresOpforVote: true
   requiresGovforVote: true
+  strandedYautjaEnabled: true
   thirdPartyAutoSpawn: true
   thirdPartyInterval: 1800
   thirdPartyRatio: 0.10
@@ -101,7 +109,12 @@
   - PlatoonSpawn
   - RemoveAllJobs
   - AddGovfor
+  - AddGovforAuxiliaryStaff
   - AddOpfor
+  - AddOpforAuxiliaryStaff
+  - AddColonist
+  - FoFAntags
+  - FoFTimeLimitRule
 
 - type: gamePreset
   id: Jailbreak

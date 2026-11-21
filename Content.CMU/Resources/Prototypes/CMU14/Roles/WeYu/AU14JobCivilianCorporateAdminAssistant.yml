@@ -1,5 +1,6 @@
 - type: job
   parent: CMJobBase
+  displayWeight: 23
   id: AU14JobCivilianCorporateAdminAssistant
   requirements:
   - !type:TraitsRequirement
@@ -31,7 +32,7 @@
     whitelist:
       tags:
       - SquadPMC
-  name: au14-job-name-civiliancorporateadminassistant
+  name: cmu-job-title-corporate-admin-assistant
   description: au14-job-description-civiliancorporateadminassistant
   setPreference: false
   playTimeTracker: AU14JobCivilianCorporateAdminAssistant

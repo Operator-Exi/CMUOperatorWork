@@ -4,8 +4,7 @@ using Robust.Shared.Prototypes;
 namespace Content.Shared.CMU14.Xenomorphs.Pathogen.DirectSporeInfect;
 
 /// <summary>
-/// Gives the Popper a melee "infect" ability that directly infects
-/// an adjacent living target without a doafter.
+/// An interruptible direct infection against an adjacent living target.
 /// Costs plasma; can only be used on InfectableComponent targets.
 /// </summary>
 [RegisterComponent, NetworkedComponent, AutoGenerateComponentState]

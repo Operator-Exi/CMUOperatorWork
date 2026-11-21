@@ -1,3 +1,4 @@
+using Content.Shared.CMU14.Threats.Mobs.Biomorph; // CMU14
 using System.Numerics;
 using Content.Shared._RMC14.Marines.Skills;
 using Content.Shared._RMC14.Pulling;
@@ -10,6 +11,7 @@ using Content.Shared.DragDrop;
 using Content.Shared.Hands.Components;
 using Content.Shared.Hands.EntitySystems;
 using Content.Shared.IdentityManagement;
+using Content.Shared.Humanoid; // CMU14: HumanoidProfileComponent for the Yautja instant-carry gate
 using Content.Shared.Inventory.VirtualItem;
 using Content.Shared.Mobs;
 using Content.Shared.MouseRotator;
@@ -29,6 +31,8 @@ using Robust.Shared.Physics.Components; // CMU14
 using Robust.Shared.Physics.Systems; // CMU14
 using Robust.Shared.Player;
 using Robust.Shared.Timing;
+using Content.Shared.CMU14.Yautja; // CMU14: YautjaComponent / YautjaBadBloodComponent for the instant-carry gate
+using Content.Shared.CMU14.Fireman; // CMU14: escape multiplier, xeno grabber and the aggressive-grabbed event (FLOW-02)
 
 namespace Content.Shared._RMC14.Fireman;
 
@@ -126,6 +130,11 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         }
 
         args.ItemUid = actualItem;
+
+        // CMU14: a throw ends the carry. Without this the victim kept BeingCarried and stayed parented to the
+        // thrower after being flung, so it could not be picked up again. StopCarry clears the carry state, restores
+        // standing, unparents on the next tick and deletes the virtual item that represented the victim in hand.
+        StopCarry(carrier.AsNullable(), (actualItem, carriable));
     }
 
     private EntityUid GetActualItem(EntityUid itemUid)
@@ -162,7 +171,23 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         if (!TryComp(user, out CanFiremanCarryComponent? carrier) || args.Target != user)
             return;
 
-        if (!_rmcPulling.IsPulling(user, ent.Owner))
+        // CMU14: a Yautja lifting an eligible human or xenomorph only needs the aggressive grab. CM-SS13's GRAB_CARRY
+        // holds the victim directly with no separate pull object, and demanding a live pull here made the carry fail
+        // whenever the pull had already dropped (walking, being stunned), which is why pickups felt intermittent.
+        // CMU14: the upstream line was removed outright; kept here so a downmerge flags the divergence:
+        // if (!_rmcPulling.IsPulling(user, ent.Owner))
+        //     return;
+        var yautjaInstant = HasComp<YautjaComponent>(user) &&
+                            (HasComp<XenoComponent>(ent.Owner) ||
+                             HasComp<HumanoidProfileComponent>(ent.Owner) ||
+                             HasComp<BiomorphComponent>(ent.Owner));
+        if (!yautjaInstant && !_rmcPulling.IsPulling(user, ent.Owner))
+            return;
+
+        // CMU14: a Yautja dragging a human themselves without an aggressive grab is stripping them, not
+        // carrying them. This handler runs before SharedStrippableSystem, so claiming the event there would swallow
+        // the strip and replace it with the "grab them aggressively" popup - leave it untouched instead.
+        if (yautjaInstant && !carrier.AggressiveGrab)
             return;
 
         args.Handled = true;
@@ -173,6 +198,14 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         if (!carrier.AggressiveGrab)
         {
             _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-need-aggressive-grab"), ent, user, PopupType.MediumCaution);
+            return;
+        }
+
+        // CMU14: a Yautja lifts an eligible human or xenomorph outright - CM-SS13's grab carries in one motion, so
+        // there is no hold-still timer. Every other carrier, and every other target type, keeps the normal do-after.
+        if (yautjaInstant)
+        {
+            StartCarry((ent.Owner, ent.Comp), user, carrier);
             return;
         }
 
@@ -231,6 +264,21 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         if (_transform.IsParentOf(Transform(ent.Owner), user))
             return;
 
+        // CMU14: the carry body used to be inline here; it is now the shared StartCarry so the instant Yautja path
+        // runs exactly the same initialisation.
+        StartCarry((ent.Owner, ent.Comp), user, carrier);
+        args.Handled = true; // CMU14: moved here from the carry body (shared with the instant Yautja path).
+    }
+
+    // CMU14: the carry itself, split out of the do-after handler so a Yautja can lift an eligible human or xeno
+    // outright and both paths share the same initialisation.
+    // CMU14 method
+    private void StartCarry(Entity<FiremanCarriableComponent> ent, EntityUid user, CanFiremanCarryComponent carrier)
+    {
+        if (_transform.IsParentOf(Transform(ent.Owner), user))
+            return;
+
+
         ent.Comp.BeingCarried = true;
         Dirty(ent);
 
@@ -242,7 +290,9 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         if (!_timing.ApplyingState && !HasComp<MouseRotatorComponent>(user))
             RemCompDeferred<NoRotateOnMoveComponent>(user);
 
-        args.Handled = true;
+        // CMU14: upstream set `args.Handled = true;` here. It moved to the do-after caller because StartCarry is
+        // shared with the instant Yautja path, which has no do-after to mark handled.
+        // args.Handled = true;
 
         _transform.SetParent(ent, user);
         _transform.SetLocalPosition(ent, Vector2.Zero);
@@ -253,8 +303,21 @@ public sealed partial class FiremanCarrySystem : EntitySystem
 
         _standing.Down(ent, changeCollision: true);
 
+        // CMU14: match the aggressive-grab state. OnAggressiveGrab gives a xenomorph KnockedDownComponent,
+        // only calling Down() left a carried xeno with its normal standing sprite, so it looked like an ordinary xeno
+        // glued onto the carrier.
+        if (HasComp<XenoComponent>(ent))
+            EnsureComp<KnockedDownComponent>(ent);
+
         _movementSpeed.RefreshMovementSpeedModifiers(user);
         _rmcSprite.SetRenderOrder(user, 1);
+
+        // CMU14: the carried mob has to occupy one of the carrier's hands through a virtual item. ValidateThrow
+        // requires the carrier to be holding the carried entity before it can be thrown, and StopCarry deletes the
+        // matching virtual item on drop, so without this a carried mob could be picked up but never thrown. Spawned
+        // here so the instant Yautja path and the delayed path share exactly the same initialisation.
+        _virtualItem.TrySpawnVirtualItemInHand(ent.Owner, user, dropOthers: false, silent: true);
+
     }
 
     private void OnCarriableStandAttempt(Entity<FiremanCarriableComponent> ent, ref StandAttemptEvent args)
@@ -278,7 +341,11 @@ public sealed partial class FiremanCarrySystem : EntitySystem
             return;
 
         var ev = new BreakFiremanCarryDoAfterEvent();
-        var doAfter = new DoAfterArgs(EntityManager, ent, ent.Comp.Delay, ev, ent);
+        // CMU14: STATE-02: FiremanCarriableComponent.BreakDelay (2 s) is never read; the struggle has always used the
+        // 3 s carry Delay. Do not switch to BreakDelay while tuning, it would make every escape faster.
+        // CMU14: FLOW-02: the grabber's CMUGrabEscapeMultiplier lengthens the struggle. Upstream passed ent.Comp.Delay:
+        // var doAfter = new DoAfterArgs(EntityManager, ent, ent.Comp.Delay, ev, ent);
+        var doAfter = new DoAfterArgs(EntityManager, ent, ent.Comp.Delay * GetGrabEscapeMultiplier(ent), ev, ent); // CMU14
         if (!_doAfter.TryStartDoAfter(doAfter))
             return;
 
@@ -399,6 +466,10 @@ public sealed partial class FiremanCarrySystem : EntitySystem
         if (ent.Comp.AggressiveGrab ||
             _timing.CurTime < ent.Comp.PullTime + grabDelay)
         {
+            // CMU14: FLOW-02: an early click used to be dropped without a word, so the window was a guess
+            if (!ent.Comp.AggressiveGrab && TryComp(ent, out PullerComponent? early) && early.Pulling is { } earlyTarget)
+                _popup.PopupEntity(Loc.GetString("cmu-pull-aggressive-not-ready"), earlyTarget, ent, PopupType.SmallCaution);
+
             return;
         }
 
@@ -408,8 +479,28 @@ public sealed partial class FiremanCarrySystem : EntitySystem
             return;
         }
 
+        // CMU14: FLOW-02: the upgrade itself (validation, AggressiveGrab, UpdateCanMove, standing down, the xeno
+        // knockdown, effect and popups) moved unchanged into TryAggressiveGrab so the Machine Grip shares it.
+        TryAggressiveGrab(ent, pulling);
+    }
+
+    // CMU14: FLOW-02: the body of OnCarrierPullToggle after its delay check, public so a one-click grab (the Early
+    // Warning Joe's Machine Grip) runs exactly the same upgrade. The grabber must be pulling the target. Raises
+    // CMUAggressiveGrabbedEvent on the carrier (and broadcast) on success (ARCH-04).
+    // CMU14 method
+    public bool TryAggressiveGrab(Entity<CanFiremanCarryComponent> carrier, EntityUid target)
+    {
+        var ent = carrier;
+        var pulling = target;
+        if (ent.Comp.AggressiveGrab ||
+            !TryComp(ent, out PullerComponent? puller) ||
+            puller.Pulling != pulling)
+        {
+            return false;
+        }
+
         if (!ValidateAggressiveGrab(ent, pulling))
-            return;
+            return false;
 
         ent.Comp.AggressiveGrab = true;
         Dirty(ent);
@@ -436,31 +527,48 @@ public sealed partial class FiremanCarrySystem : EntitySystem
             var msg = Loc.GetString("rmc-pull-aggressive-others", ("puller", pullerName), ("pulled", pulledName));
             _popup.PopupEntity(msg, ent, recipient, PopupType.SmallCaution);
         }
+
+        var grabbed = new CMUAggressiveGrabbedEvent(ent.Owner, pulling);
+        RaiseLocalEvent(ent.Owner, ref grabbed, broadcast: true);
+        return true;
     }
 
-    private bool ValidateAggressiveGrab(Entity<CanFiremanCarryComponent> carrier, EntityUid target)
+    // CMU14: FLOW-02: popup lets CanAggressiveGrab ask the same question silently. Upstream signature:
+    // private bool ValidateAggressiveGrab(Entity<CanFiremanCarryComponent> carrier, EntityUid target)
+    private bool ValidateAggressiveGrab(Entity<CanFiremanCarryComponent> carrier, EntityUid target, bool popup = true) // CMU14
     {
         if (HasComp<XenoComponent>(target))
         {
-            if (!TryComp(target, out FiremanCarriableComponent? carriable) ||
-                carriable.CarrierWhitelist == null ||
-                !_whitelist.IsValid(carriable.CarrierWhitelist, carrier.Owner))
+            // CMU14: FLOW-02: a CMUXenoGrabber may grab small castes too, alongside the Yautja carrier whitelist.
+            // The upstream condition is unchanged as whitelistPass.
+            var whitelistPass = TryComp(target, out FiremanCarriableComponent? carriable) &&
+                                carriable.CarrierWhitelist != null &&
+                                _whitelist.IsValid(carriable.CarrierWhitelist, carrier.Owner);
+            if (!whitelistPass && !CMUCanGrabXeno(carrier.Owner, target, out var onCooldown))
             {
-                _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-cant-grab-aggressively"), target, carrier, PopupType.MediumCaution);
+                if (popup)
+                {
+                    var refusal = onCooldown ? "cmu-pull-aggressive-xeno-cooldown" : "rmc-fireman-carry-cant-grab-aggressively";
+                    _popup.PopupEntity(Loc.GetString(refusal), target, carrier, PopupType.MediumCaution);
+                }
+
                 return false;
             }
+            // CMU14 end
         }
         else if (TryComp(target, out FiremanCarriableComponent? carriable))
         {
             if (carriable.CarrierWhitelist != null && !_whitelist.IsValid(carriable.CarrierWhitelist, carrier.Owner))
             {
-                _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-cant-grab-aggressively"), target, carrier, PopupType.MediumCaution);
+                if (popup) // CMU14
+                    _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-cant-grab-aggressively"), target, carrier, PopupType.MediumCaution);
                 return false;
             }
 
             if (carriable.CarrierWhitelist == null && !_skills.HasSkill(carrier.Owner, carriable.Skill, 1))
             {
-                _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-not-trained-grab"), target, carrier, PopupType.MediumCaution);
+                if (popup) // CMU14
+                    _popup.PopupEntity(Loc.GetString("rmc-fireman-carry-not-trained-grab"), target, carrier, PopupType.MediumCaution);
                 return false;
             }
         }
@@ -524,6 +632,10 @@ public sealed partial class FiremanCarrySystem : EntitySystem
                 _toReparent.Add((target, user));
             }
         }
+
+        // Why: only xenos get the carry's knockdown, so a carried-and-released marine must keep theirs.
+        if (HasComp<XenoComponent>(target))
+            RemCompDeferred<KnockedDownComponent>(target);
 
         _standing.Stand(target);
         _actionBlocker.UpdateCanMove(target);

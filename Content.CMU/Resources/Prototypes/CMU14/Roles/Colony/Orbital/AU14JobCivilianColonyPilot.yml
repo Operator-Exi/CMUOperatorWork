@@ -30,7 +30,11 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
-    - NoEnglish
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
   ranks:
     AU14RankFlightCaptain:
     - !type:RoleTimeRequirement

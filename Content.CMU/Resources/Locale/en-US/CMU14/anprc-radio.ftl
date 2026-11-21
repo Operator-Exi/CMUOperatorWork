@@ -96,9 +96,13 @@ anprc-sweep-aborted = The search stops as the set shuts down.
 anprc-sweep-aborted-power = The battery dies and the search stops.
 anprc-sweep-tx-blocked = The set is searching the band. Stop the search before transmitting.
 anprc-sweep-contact = The search narrows. Something is transmitting on { $freq } MHz.
-anprc-sweep-resolved = FIX: { $freq } MHz - { $net }. New traffic on it now gives a bearing and banks a key trial on the faceplate.
+anprc-sweep-resolved = FIX: { $freq } MHz - { $net }. Manpack traffic on it now gives a rough bearing, and every line banks a key trial on the faceplate.
 anprc-sweep-unknown-net = UNIDENTIFIED NET
-anprc-fixed-net-bearing = DF { $net }: speaker bearing { $bearing }, about { $distance } tiles away.
+anprc-fixed-net-bearing = DF { $net }: speaker bearing { $bearing }, { $band ->
+    [near] close by.
+    [mid] some way off.
+   *[far] a long way off.
+}
 
 # chat rows (ANPRCChatSystem): the set's own notices, and intercepts
 anprc-chat-label = 117G
@@ -166,6 +170,7 @@ anprc-dwell-needs-search = Start a band search before parking the search head.
 anprc-dwell-on = Search head parked on the contact. The rest of the band is ignored until you release it.
 anprc-dwell-lost = That contact has faded or already been resolved.
 anprc-jammer-none = No jammer is affecting the set.
+anprc-df-disabled = Direction finding is not available in this operation.
 anprc-jammer-bearing-first = Jammer bearing { $bearing }. Move at least { $baseline } tiles and take a second bearing to fix its position.
 anprc-jammer-baseline-short = Jammer bearing { $bearing }, but you have only moved { $moved } of { $baseline } tiles from the first position. Move farther before taking the second bearing.
 anprc-jammer-fixed = FIX: bearings cross at { $bearing }, about { $distance } tiles away. Jammer marked on your faction's map for { $minutes } minutes.

@@ -116,7 +116,7 @@ public sealed partial class SharedCMUShrapnelSystem : EntitySystem
     {
         if (TryComp<BodyPartComponent>(part, out var bodyPart) &&
             bodyPart.Body is { } body &&
-            HasComp<YautjaComponent>(body))
+            (HasComp<YautjaComponent>(body) || HasComp<YautjaThrallHeroComponent>(body)))
         {
             return false;
         }
@@ -676,6 +676,7 @@ public sealed partial class SharedCMUShrapnelSystem : EntitySystem
     {
         return explosion == "Default"
             || explosion == "RMC"
+            || explosion == "CMUHijackPipe"
             || explosion == "RMCMortar"
             || explosion == "RMCOB"
             || explosion == "RMCOBXenoTunnel"

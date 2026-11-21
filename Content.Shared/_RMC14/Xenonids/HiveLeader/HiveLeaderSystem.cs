@@ -101,7 +101,7 @@ public sealed partial class HiveLeaderSystem : EntitySystem
         {
             if (leaders.Count == 0)
             {
-                msg = "There are no Xenonid leaders. Overwatch a Xenonid to make it a leader.";
+                msg = Loc.GetString("rmc-xeno-hive-leader-none"); // CMU14: localized in xeno-ui.ftl
                 _popup.PopupEntity(msg, ent, ent, PopupType.MediumCaution);
                 return;
             }
@@ -112,16 +112,22 @@ public sealed partial class HiveLeaderSystem : EntitySystem
                 options.Add(new DialogOption(Name(leader), new HiveLeaderWatchEvent(GetNetEntity(leader))));
             }
 
-            _dialog.OpenOptions(ent, "Watch with leader?", options, "Target");
+            _dialog.OpenOptions(ent, Loc.GetString("rmc-xeno-hive-leader-watch-title"), options, Loc.GetString("rmc-xeno-hive-leader-watch-confirm")); // CMU14: localized in xeno-ui.ftl
             return;
         }
 
         if (ent.Owner == watching)
             return;
 
+        // CMU14 Begin: structures and foreign hive members can also be watched.
+        if (!HasComp<XenoComponent>(watching) || _mobState.IsDead(watching) || !_hive.FromSameHive(ent.Owner, watching))
+            return;
+        // CMU14 End
+
         if (!HasComp<HiveLeaderComponent>(watching) && leaders.Count >= max)
         {
-            msg = $"You can't have more than {max} promoted leaders.";
+            msg = Loc.GetString("rmc-xeno-hive-leader-max-promoted",
+                ("max", max)); // CMU14: localized in xeno-ui.ftl
             _popup.PopupEntity(msg, watching, ent, PopupType.MediumCaution);
             return;
         }
@@ -132,10 +138,12 @@ public sealed partial class HiveLeaderSystem : EntitySystem
             RemComp<RMCTrackableComponent>(watching);
             ent.Comp.Leaders.Remove(watching);
 
-            msg = $"You've demoted {Name(watching)} from Hive Leader.";
+            msg = Loc.GetString("rmc-xeno-hive-leader-demote-user",
+                ("target", Name(watching))); // CMU14: localized in xeno-ui.ftl
             _popup.PopupEntity(msg, watching, ent, PopupType.MediumCaution);
 
-            msg = $"{Name(ent)} has demoted you from Hive Leader. Your leadership rights and abilities have waned.";
+            msg = Loc.GetString("rmc-xeno-hive-leader-demote-target",
+                ("name", Name(ent))); // CMU14: localized in xeno-ui.ftl
             _popup.PopupEntity(msg, watching, watching, PopupType.MediumCaution);
             _rmcChat.ChatMessageToOne(msg, watching);
             var evn = new HiveLeaderStatusChangedEvent(false);
@@ -152,9 +160,11 @@ public sealed partial class HiveLeaderSystem : EntitySystem
         SyncPheromones(ent);
         Dirty(ent);
 
-        msg = $"You've selected {Name(watching)} as a Hive Leader.";
+        msg = Loc.GetString("rmc-xeno-hive-leader-promote-user",
+            ("target", Name(watching))); // CMU14: localized in xeno-ui.ftl
         _popup.PopupEntity(msg, watching, ent, PopupType.Medium);
-        msg = $"{Name(ent)} has selected you as a Hive Leader. The other Xenonids must listen to you. You will also act as a beacon for the Queen's pheromones.";
+        msg = Loc.GetString("rmc-xeno-hive-leader-promote-target",
+            ("name", Name(ent))); // CMU14: localized in xeno-ui.ftl
         _popup.PopupEntity(msg, watching, watching, PopupType.Medium);
         _rmcChat.ChatMessageToOne(msg, watching);
     }

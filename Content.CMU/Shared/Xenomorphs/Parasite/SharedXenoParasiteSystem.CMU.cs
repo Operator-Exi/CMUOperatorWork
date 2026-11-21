@@ -1,6 +1,7 @@
 // ReSharper disable CheckNamespace
 
 using Content.Shared._RMC14.ShakeStun;
+using Content.Shared._RMC14.Xenonids.Construction.Nest;
 using Content.Shared.Interaction;
 using Content.Shared.Popups;
 using Robust.Shared.Random;
@@ -10,6 +11,19 @@ namespace Content.Shared._RMC14.Xenonids.Parasite;
 // CMU14: how long a parasite holds on to a face, and shaking it loose.
 public abstract partial class SharedXenoParasiteSystem
 {
+    /// <summary>
+    /// Neomorph infections produce raspy breathing after stage one, before the late burst symptoms.
+    /// Ordinary xenonid embryos do not produce this diagnostic clue.
+    /// </summary>
+    public bool HasNeomorphBreathingSymptoms(EntityUid patient)
+    {
+        return TryComp<VictimInfectedComponent>(patient, out var infected)
+            && infected.BurstSpawn == "CMU14XenoBloodburster"
+            && infected.CurrentStage >= 2;
+    }
+
+    [Dependency] private Content.Shared.CMU14.Xenomorphs.Pathogen.CMUNeoHeadgearSystem _neoHeadgear = default!;
+
     private void CMUInitialize()
     {
         SubscribeLocalEvent<InfectableComponent, InteractHandEvent>(CMUOnInfectableInteractHand,
@@ -19,6 +33,7 @@ public abstract partial class SharedXenoParasiteSystem
     /// <summary>
     ///     A parasite holds on for a random two to five minutes. The server picks the time; until its state
     ///     arrives the client assumes the longest, so it never predicts the parasite letting go early.
+    ///     Nested hosts use the shorter infection delay instead.
     /// </summary>
     private void CMUSetHugTime(Entity<XenoParasiteComponent> parasite)
     {
@@ -27,8 +42,33 @@ public abstract partial class SharedXenoParasiteSystem
             ? TimeSpan.FromSeconds(_random.NextDouble(parasite.Comp.CMUMinHugTime.TotalSeconds, parasite.Comp.CMUMaxHugTime.TotalSeconds))
             : parasite.Comp.CMUMaxHugTime;
 
+        if (parasite.Comp.InfectedVictim is { } victim
+            && TryComp<XenoNestedComponent>(victim, out var nested)
+            && !nested.Detached)
+            hold = hold < parasite.Comp.FallOffDelay 
+                 ? hold : parasite.Comp.FallOffDelay;
         parasite.Comp.CMUAttachedAt = now;
         parasite.Comp.FallOffAt = now + hold;
+    }
+
+    private void CMUUpdateNestedHugTime(Entity<XenoParasiteComponent> parasite)
+    {
+        if (!_net.IsServer ||
+            parasite.Comp.FellOff ||
+            parasite.Comp.FallOffAt is not { } fallOffAt ||
+            parasite.Comp.InfectedVictim is not { } victim ||
+            !TryComp<XenoNestedComponent>(victim, out var nested) ||
+            nested.Detached)
+        {
+            return;
+        }
+
+        var nestedFallOffAt = _timing.CurTime + parasite.Comp.FallOffDelay;
+        if (fallOffAt <= nestedFallOffAt)
+            return;
+
+        parasite.Comp.FallOffAt = nestedFallOffAt;
+        Dirty(parasite);
     }
 
     /// <summary>
@@ -38,6 +78,9 @@ public abstract partial class SharedXenoParasiteSystem
     /// </summary>
     private void CMUOnInfectableInteractHand(Entity<InfectableComponent> ent, ref InteractHandEvent args)
     {
+        if (!args.Handled && _neoHeadgear.TryStart(args.User, ent.Owner))
+            args.Handled = true;
+
         if (args.Handled || args.User == args.Target || !ent.Comp.BeingInfected)
             return;
 

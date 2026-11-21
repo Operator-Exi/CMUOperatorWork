@@ -3,6 +3,7 @@ using Content.Shared.CMU14.Yautja;
 // CMU14 Devolution Refund Begin: import the CMU-owned refund state
 using Content.Shared.CMU14.Xenonids.Evolution;
 // CMU14 End
+using Content.Shared.CMU14.Xenomorphs.Pathogen; // CMU14: adaptability boon skips pathogen castes
 using Content.Shared._RMC14.CCVar;
 using Content.Shared._RMC14.Dropship; // CMU14
 using Content.Shared._RMC14.Roles;
@@ -12,6 +13,7 @@ using Content.Shared._RMC14.Xenonids.Egg;
 using Content.Shared._RMC14.Xenonids.Hive;
 using Content.Shared._RMC14.Xenonids.JoinXeno;
 using Content.Shared._RMC14.Xenonids.ManageHive.Boons;
+using Content.Shared._RMC14.Xenonids.Strain; // CMU14: validate destraining against the current strain.
 using Content.Shared._RMC14.Xenonids.Weeds;
 using Content.Shared.Actions;
 using Content.Shared.Administration.Logs;
@@ -107,6 +109,7 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
 
         SubscribeLocalEvent<XenoDevolveComponent, XenoOpenDevolveActionEvent>(OnXenoOpenDevolveAction);
 
+        SubscribeLocalEvent<XenoStrainComponent, MapInitEvent>(OnDestrainMapInit); // CMU14
         SubscribeLocalEvent<XenoEvolutionComponent, MapInitEvent>(OnXenoEvolveMapInit);
         SubscribeLocalEvent<XenoEvolutionComponent, XenoOpenEvolutionsActionEvent>(OnXenoEvolveAction);
         SubscribeLocalEvent<XenoEvolutionComponent, XenoEvolutionDoAfterEvent>(OnXenoEvolveDoAfter);
@@ -247,11 +250,17 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
         if (_net.IsClient)
             return;
 
-        if (!xeno.Comp.Strains.Contains(args.Choice))
+        // CMU14: a strain may also return to its configured base caste.
+        // if (!xeno.Comp.Strains.Contains(args.Choice))
+        var destraining = TryComp(xeno, out XenoStrainComponent? strain) && strain.BaseCaste == args.Choice;
+        if (!xeno.Comp.Strains.Contains(args.Choice) && !destraining)
         {
             Log.Warning($"{ToPrettyString(actor)} sent an invalid strain choice: {args.Choice}.");
             return;
         }
+
+        if (destraining && !DestrainCooldownCheckPopup(xeno)) // CMU14
+            return;
 
         if (!HivebrokenCheckPopup(xeno))
             return;
@@ -263,6 +272,8 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
             return;
 
         var newXeno = TransferXeno(xeno, args.Choice);
+        if (destraining) // CMU14: only a successful destrain starts the timer.
+            StartDestrainCooldown(newXeno);
         var ev = new NewXenoEvolvedEvent(xeno, newXeno, false);
         RaiseLocalEvent(newXeno, ref ev, true);
 
@@ -274,7 +285,7 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
         RaiseLocalEvent(newXeno, ref afterEv);
     }
 
-    private bool CanCorruptedHiveEvolveToQueen(EntityUid xeno, bool doPopup)
+    public bool CanCorruptedHiveEvolveToQueen(EntityUid xeno, bool doPopup) // CMU14: also used for blight-core elections
     {
         if (_net.IsClient)
             return true;
@@ -398,7 +409,7 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
 
     private void OnBoonAdaptability(HiveBoonActivateAdaptabilityEvent ev)
     {
-        var castes = new List<(EntProtoId Id, int Tier)>();
+        var castes = new List<(EntProtoId Id, int Tier, bool Pathogen)>(); // CMU14: track pathogen family
         foreach (var prototype in _prototypes.EnumeratePrototypes<EntityPrototype>())
         {
             if (!prototype.TryComp(out XenoEvolutionComponent? evolution, _compFactory))
@@ -409,7 +420,7 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
                 if (_prototypes.TryIndex(id, out var caste) &&
                     caste.TryComp(out XenoComponent? xeno, _compFactory))
                 {
-                    castes.Add((id, xeno.Tier));
+                    castes.Add((id, xeno.Tier, caste.HasComp<CMUPathogenHiveMemberComponent>(_compFactory))); // CMU14: track pathogen family
                 }
             }
         }
@@ -421,9 +432,12 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
                 continue;
 
             var self = Prototype(uid)?.ID;
-            foreach (var (id, tier) in castes)
+            // CMU14: pathogen castes (neomorph, blight...) sit in the same tiers, so a normal hive could swap into them
+            var selfPathogen = HasComp<CMUPathogenHiveMemberComponent>(uid);
+            foreach (var (id, tier, pathogen) in castes) // CMU14: pathogen flag
             {
                 if (tier != xenoComp.Tier ||
+                    pathogen != selfPathogen || // CMU14: stay in your own family
                     id.Id == self ||
                     comp.EvolvesToWithoutPoints.Contains(id))
                 {
@@ -690,8 +704,13 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
                 if (existingComp.Tier < newXenoComp.Tier)
                     continue;
 
-                if (slotCount.TryGetValue(existingComp.Role.Id, out var freeSlots) && freeSlots > 0)
-                    slotCount[existingComp.Role.Id] = freeSlots - 1;
+                // CMU14 Begin: free slots are keyed by caste entity prototype, just like the evolution target.
+                // if (slotCount.TryGetValue(existingComp.Role.Id, out var freeSlots) && freeSlots > 0)
+                //     slotCount[existingComp.Role.Id] = freeSlots - 1;
+                if (MetaData(uid).EntityPrototype is { } caste &&
+                    slotCount.TryGetValue(caste.ID, out var freeSlots) && freeSlots > 0)
+                    slotCount[caste.ID] = freeSlots - 1;
+                // CMU14 End
                 else
                     existing++;
             }
@@ -884,6 +903,7 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
         EnsureComp<XenoEvolutionTransferComponent>(xeno);
         var coordinates = _transform.GetMoverCoordinates(xeno);
         var newXeno = Spawn(proto, coordinates);
+        TransferDestrainCooldown(xeno, newXeno); // CMU14: retain the timer through every evolution path.
         EnsureComp<LarvaQueueClaimBlockedComponent>(newXeno);
         EnsureComp<XenoEvolutionTransferComponent>(newXeno);
         _xenoHive.SetSameHive(xeno, newXeno);
@@ -911,6 +931,11 @@ public sealed partial class XenoEvolutionSystem : EntitySystem
             if (HasComp<DoorComponent>(id) || HasComp<AirlockComponent>(id))
                 comp.StopCollide.Add(id);
         }
+
+        // CMU14 Begin: restore a climb only if the previous body was already climbing.
+        comp.TriedClimb = !TryComp(xeno, out ClimbingComponent? oldClimbing) || !oldClimbing.IsClimbing;
+        Dirty(newXeno, comp);
+        // CMU14 End
 
         var newRecently = EnsureComp<XenoRecentlyDevolvedComponent>(newXeno);
         if (TryComp(xeno, out XenoRecentlyDevolvedComponent? oldRecently))

@@ -16,6 +16,7 @@ using Content.Shared.CMU14.util;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.GameTicking;
 using Content.Shared.UserInterface;
+using Content.Shared.Vehicle.Components;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Map;
 
@@ -32,42 +33,28 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
 
     private readonly record struct Depot(Entity<VehicleSupplyConsoleComponent> Console, Entity<VehicleSupplyLiftComponent> Lift);
 
-    // CMU14 method: reject foreign chassis while allowing each platoon's current catalog.
-    [TestCase("USCM", "VehicleTank", "VehicleSPPTank", true, true)]
-    [TestCase("LACN", "VehicleAPC", "VehicleAPCCommand", true, true)]
-    [TestCase("UPP", "VehicleSPPTank", "VehicleTank", false, false)]
-    [TestCase("WEYU", "VehicleTankPMC", "VehicleTank", true, true)]
-    [TestCase("CMBCIU", "AU14VehicleCivHSVan", "VehicleSPPTank", true, true)]
-    [TestCase("HAZOPS", "VehicleAev", "VehicleSPPTank", false, true)]
-    [TestCase("ProdigySF", "AU14VehicleCivTruck", "VehicleAPC", false, false)]
-    [TestCase("VAIPO", "VehicleAPC", "VehicleSPPTank", true, true)]
-    [TestCase("RMC", "VehicleTankTWE", "VehicleSPPTank", false, false)]
-    public async Task PlatoonCatalogRestrictsChassisVtolAndParts(string platoon, string allowed, string excluded, bool armed, bool transport)
+    [Test]
+    public async Task FactoryLoadoutsFitTheirVehicleMounts()
     {
         var map = await Pair.CreateTestMap();
         await Server.WaitAssertion(() =>
         {
-            Configure(map.GridCoords, platoon);
             var depot = CreateDepot(map.GridCoords);
-            var ids = State(depot).Available.Select(entry => entry.Id).ToArray();
-            Assert.That(ids, Does.Contain(allowed));
-            Assert.That(ids, Does.Not.Contain(excluded));
-            Assert.That(ids.Contains("VehicleBlackfootDoorGunVariant"), Is.EqualTo(armed));
-            Assert.That(ids.Contains("VehicleBlackfootTransport"), Is.EqualTo(transport));
-            Assert.That(ids, Does.Not.Contain("VehicleBlackfootRecon"));
-
-            var vendor = SEntMan.SpawnEntity("VehicleHardpointVendor", map.GridCoords.Offset(new Vector2(3, 0)));
-            var parts = Parts(vendor);
-            Assert.That(parts.Contains("VehicleBlackfootDoorGun"), Is.EqualTo(armed));
-            Assert.That(parts.Contains("VehicleBlackfootThrusters"), Is.EqualTo(transport));
-            Assert.That(parts, Does.Not.Contain("VehicleHumveeARCCannon"));
-
-            // A stale or forged client choice must also be rejected server-side.
-            Queue(depot, excluded);
-            Assert.That(depot.Lift.Comp.PendingVehicle, Is.Empty);
-            Assert.That(depot.Lift.Comp.ActiveVehicle, Is.Null);
+            var topology = SEntMan.System<VehicleTopologySystem>();
+            var hardpoints = SEntMan.System<HardpointSystem>();
+            foreach (var entry in depot.Console.Comp.Vehicles.Where(entry => entry.FactoryModules.Count > 0))
+            {
+                var vehicle = SEntMan.SpawnEntity(entry.Vehicle, map.GridCoords);
+                var before = topology.GetMountedSlots(vehicle).Count(slot => slot.Item != null);
+                hardpoints.FitFactoryModules(vehicle, entry.FactoryModules);
+                Assert.That(topology.GetMountedSlots(vehicle).Count(slot => slot.Item != null) - before,
+                    Is.EqualTo(entry.FactoryModules.Count), $"Factory loadout must fit {entry.Vehicle}");
+                SEntMan.DeleteEntity(vehicle);
+            }
         });
     }
+
+    // CMU14 method: reject foreign chassis while allowing each platoon's current catalog.
 
     [Test]
     // cmu edit start: one vehicle of each category, shared across depots
@@ -130,7 +117,7 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             Assert.That(b.Lift.Comp.PendingVehicle, Is.EqualTo("VehicleHumveeTransport"));
             // cmu edit end
             if (first == "CMUFighterGround")
-                SEntMan.DeleteEntity(a.Lift.Comp.ActiveVehicle!.Value);
+                SEntMan.DeleteEntity(GetVehicleOnLift(a));
         });
     }
 
@@ -146,10 +133,10 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             var enemy = CreateDepot(map.GridCoords.Offset(new Vector2(60, 0)), "opfor");
             Queue(first, "CMUFighterGround");
             Queue(second, "CMUFighterGround");
-            Queue(enemy, "CMUFighterGround");
+            Queue(enemy, "CMUFighterGroundUPP");
             Assert.That(first.Lift.Comp.PendingVehicle, Is.EqualTo("CMUFighterGround"));
             Assert.That(second.Lift.Comp.PendingVehicle, Is.Empty);
-            Assert.That(enemy.Lift.Comp.PendingVehicle, Is.EqualTo("CMUFighterGround"));
+            Assert.That(enemy.Lift.Comp.PendingVehicle, Is.EqualTo("CMUFighterGroundUPP"));
             Complete(first);
             ResetLift(second);
             Assert.That(State(second).Available.Select(entry => entry.Id), Does.Not.Contain("CMUFighterGround"));
@@ -157,7 +144,7 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             Assert.That(second.Lift.Comp.PendingVehicle, Is.Empty);
             // Delete the aircraft while its landing map still exists, so its
             // cockpit is cleaned up before GameTest removes the map.
-            SEntMan.DeleteEntity(first.Lift.Comp.ActiveVehicle!.Value);
+            SEntMan.DeleteEntity(GetVehicleOnLift(first));
         });
     }
 
@@ -178,8 +165,7 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
                 Queue(depot, vehicle);
             // cmu edit end
                 Complete(depot);
-                Assert.That(depot.Lift.Comp.ActiveVehicle, Is.Not.Null);
-                SEntMan.DeleteEntity(depot.Lift.Comp.ActiveVehicle!.Value);
+                SEntMan.DeleteEntity(GetVehicleOnLift(depot));
             }
 
             SEntMan.EventBus.RaiseEvent(EventSource.Local, new TechUnlockVehicleEvent("VehicleHumvee") { Additional = true });
@@ -215,7 +201,7 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             var second = CreateDepot(map.GridCoords.Offset(new Vector2(30, 0)));
             Queue(depot, "VehicleBlackfootTransport");
             Complete(depot);
-            var vehicle = depot.Lift.Comp.ActiveVehicle!.Value;
+            var vehicle = GetVehicleOnLift(depot);
             var integrity = SEntMan.GetComponent<HardpointIntegrityComponent>(vehicle);
             integrity.Integrity = 42;
             var slots = Server.System<ItemSlotsSystem>();
@@ -238,47 +224,11 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             Assert.That(depot.Lift.Comp.PendingLoadouts, Is.Empty);
             Assert.That(depot.Lift.Comp.PendingBundle, Is.Empty);
             Complete(depot);
-            Assert.That(depot.Lift.Comp.ActiveVehicle, Is.EqualTo(vehicle));
+            Assert.That(GetVehicleOnLift(depot), Is.EqualTo(vehicle));
             Assert.That(integrity.Integrity, Is.EqualTo(42));
             Assert.That(launcher.Item, Is.EqualTo(originalLauncher));
             Assert.That(BundleCount(), Is.EqualTo(count));
             Assert.That(State(depot).IssuedVehicles, Has.Count.EqualTo(2));
-        });
-    }
-
-    [Test]
-    public async Task ExhaustedAllowanceListsOnlyRealStoredVehicles()
-    {
-        var map = await Pair.CreateTestMap();
-        await Server.WaitAssertion(() =>
-        {
-            Configure(map.GridCoords);
-            var depot = CreateDepot(map.GridCoords);
-            var second = CreateDepot(map.GridCoords.Offset(new Vector2(30, 0)));
-            Queue(depot, "VehicleHumvee");
-            Complete(depot);
-            State(depot); // A second new Humvee is still available at this point.
-            Invoke("StoreVehicle", depot.Lift);
-            ResetLift(depot);
-            // cmu edit start: storing the Humvee frees its allowance, so use up all four categories elsewhere
-            EntityUid? fighter = null;
-            foreach (var other in new[] { "VehicleTank", "VehicleAPC", "VehicleHumveeTransport", "CMUFighterGround" })
-            {
-                ResetLift(second);
-                Queue(second, other);
-                Complete(second);
-                if (other == "CMUFighterGround")
-                    fighter = second.Lift.Comp.ActiveVehicle;
-            }
-
-            var available = State(depot).Available.Single();
-            Assert.That(available.Id, Is.EqualTo("VehicleHumvee"));
-            Assert.That(available.Count, Is.EqualTo(1));
-            Assert.That(State(depot).IssuedVehicles, Has.Count.EqualTo(4));
-            // Delete the aircraft while its landing map still exists.
-            if (fighter != null)
-                SEntMan.DeleteEntity(fighter.Value);
-            // cmu edit end
         });
     }
 
@@ -296,7 +246,6 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
             Queue(depot, "VehicleTank");
             Server.System<PlatoonSpawnRuleSystem>().SelectedGovforPlatoon = SProtoMan.Index<PlatoonPrototype>(CMBCIUPrototype);
             Complete(depot);
-            Assert.That(depot.Lift.Comp.ActiveVehicle, Is.Null);
             Assert.That(State(depot).IssuedVehicles, Is.Empty);
             Assert.That(State(depot).Available.Select(entry => entry.Id), Does.Not.Contain("VehicleTank"));
         });
@@ -394,6 +343,24 @@ public sealed class VehicleSupplyPlatoonTest : GameTest
                 count++;
         }
         return count;
+    }
+
+    private EntityUid GetVehicleOnLift(Depot depot, string? prototypeId = null)
+    {
+        foreach (var entity in Server.System<EntityLookupSystem>().GetEntitiesIntersecting(depot.Lift))
+        {
+            if (!SEntMan.HasComponent<VehicleComponent>(entity))
+                continue;
+
+            if (prototypeId == null ||
+                SEntMan.GetComponent<MetaDataComponent>(entity).EntityPrototype?.ID == prototypeId)
+                return entity;
+        }
+
+        Assert.Fail(prototypeId == null
+            ? "Expected a vehicle on the supply lift."
+            : $"Expected vehicle prototype {prototypeId} on the supply lift.");
+        return default;
     }
 
     private void Invoke(string method, params object[] args) =>

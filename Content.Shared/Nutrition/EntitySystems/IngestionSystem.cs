@@ -127,6 +127,10 @@ public sealed partial class IngestionSystem : EntitySystem
         if (HasComp<OrganComponent>(entity))
             return;
 
+        // CMU14 (FLOW-20): a spray bottle clicked on someone sprays them (server SpraySystem); don't predict a force-feed.
+        if (HasComp<Content.Shared.Fluids.Components.SprayComponent>(entity))
+            return;
+
         args.Handled = TryIngest(args.User, args.Target.Value, entity);
     }
 
@@ -290,6 +294,11 @@ public sealed partial class IngestionSystem : EntitySystem
         var delay = time ?? TimeSpan.Zero;
         if (!HasComp<PillComponent>(food))
             delay *= CMUIngestionDelayMultiplier;
+
+        // cmu edit start: eating your own food with a fork or spoon in hand is instant
+        if (!forceFed && TryGetUtensils(args.User, food, out var cmuUtensils) && cmuUtensils.Count > 0)
+            delay = TimeSpan.Zero;
+        // cmu edit end
 
         if (!_doAfter.TryStartDoAfter(GetEdibleDoAfterArgs(args.User, entity, food, delay)))
             return;

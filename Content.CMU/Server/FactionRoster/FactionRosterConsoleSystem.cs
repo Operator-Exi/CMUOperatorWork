@@ -9,7 +9,9 @@ using Content.Shared.CMU14.FactionRoster;
 using Content.Shared.Humanoid;
 using Content.Shared.Mobs.Components;
 using Content.Shared.NPC.Components;
+using Content.Shared.Paper;
 using Robust.Server.GameObjects;
+using Robust.Shared.Utility;
 
 namespace Content.Server.CMU14.FactionRoster;
 
@@ -21,6 +23,8 @@ public sealed partial class FactionRosterConsoleSystem : EntitySystem
     [Dependency] private Robust.Shared.Prototypes.IPrototypeManager _prototypeManager = default!;
     [Dependency] private RMCReagentSystem _reagentSystem = default!;
     [Dependency] private HumanoidOrganAppearanceSystem _humanoidAppearance = default!;
+    [Dependency] private PaperSystem _paper = default!;
+    [Dependency] private MetaDataSystem _meta = default!;
 
     private const string ColonyFactionId = "AUColonist";
     private const string ClfFactionId = "CLF";
@@ -31,6 +35,7 @@ public sealed partial class FactionRosterConsoleSystem : EntitySystem
 
         SubscribeLocalEvent<FactionRosterConsoleComponent, BoundUIOpenedEvent>(OnUiOpened);
         SubscribeLocalEvent<FactionRosterConsoleComponent, FactionRosterConsoleRefreshBuiMsg>(OnRefresh);
+        SubscribeLocalEvent<FactionRosterConsoleComponent, FactionRosterConsolePrintBuiMsg>(OnPrint);
     }
 
     private void OnUiOpened(Entity<FactionRosterConsoleComponent> ent, ref BoundUIOpenedEvent args)
@@ -41,6 +46,46 @@ public sealed partial class FactionRosterConsoleSystem : EntitySystem
     private void OnRefresh(Entity<FactionRosterConsoleComponent> ent, ref FactionRosterConsoleRefreshBuiMsg args)
     {
         UpdateUi(ent);
+    }
+
+    /// <summary>Prints someone's personnel file on paper at the console, if they're still on its roster.</summary>
+    private void OnPrint(Entity<FactionRosterConsoleComponent> ent, ref FactionRosterConsolePrintBuiMsg args)
+    {
+        var name = args.Name;
+        var entry = BuildRoster(ent.Comp.Faction.Id).Find(e => e.Name == name);
+        if (entry == null)
+            return;
+
+        var paper = Spawn(PersonnelPaper, Transform(ent).Coordinates);
+        _meta.SetEntityName(paper, Loc.GetString("faction-roster-print-name", ("name", entry.Name)));
+        _paper.SetContent(paper, BuildPrintout(entry));
+    }
+
+    private const string PersonnelPaper = "CMPaper";
+
+    private string BuildPrintout(FactionRosterEntry entry)
+    {
+        string Or(string? value) => string.IsNullOrWhiteSpace(value)
+            ? Loc.GetString("faction-roster-dossier-not-recorded")
+            : FormattedMessage.EscapeText(value.Trim());
+
+        return Loc.GetString("faction-roster-print-content",
+            ("name", FormattedMessage.EscapeText(entry.Name)),
+            ("job", FormattedMessage.EscapeText(entry.Job)),
+            ("age", entry.Age > 0 ? entry.Age.ToString() : Loc.GetString("faction-roster-dossier-not-recorded")),
+            ("height", Or(entry.Height)),
+            ("weight", entry.Weight > 0 ? entry.Weight.ToString() : Loc.GetString("faction-roster-dossier-not-recorded")),
+            ("build", Or(entry.Build)),
+            ("skin", Or(entry.SkinToneName)),
+            ("hair", Or(entry.HairColorName)),
+            ("eyes", Or(entry.EyeColorName)),
+            ("allegiance", Or(entry.Allegiance)),
+            ("origin", Or(entry.Origin)),
+            ("religion", Or(entry.Religion)),
+            ("description", Or(entry.FullDescription)),
+            ("medical", Or(entry.MedicalRecord)),
+            ("criminal", Or(entry.CriminalRecord)),
+            ("general", Or(entry.GeneralRecord)));
     }
 
     private void UpdateUi(Entity<FactionRosterConsoleComponent> ent)
@@ -70,7 +115,13 @@ public sealed partial class FactionRosterConsoleSystem : EntitySystem
         return entries;
     }
 
-    private FactionRosterEntry BuildEntry(EntityUid uid, EntityUid mindId, bool disguiseAsColonist)
+    /// <summary>True when the body belongs to the CLF; colony-facing rosters disguise them as colonists.</summary>
+    public bool IsClfMember(EntityUid uid)
+        => TryComp(uid, out NpcFactionMemberComponent? factions)
+            && ThreatRuleHelper.HasFaction(factions, ClfFactionId);
+
+    /// <summary>The dossier for <paramref name="uid"/>; also used by the criminal records console's personnel file.</summary>
+    public FactionRosterEntry BuildEntry(EntityUid uid, EntityUid mindId, bool disguiseAsColonist)
     {
         var entry = new FactionRosterEntry
         {
@@ -88,7 +139,6 @@ public sealed partial class FactionRosterConsoleSystem : EntitySystem
             entry.CriminalRecord = desc.CriminalRecord;
             entry.GeneralRecord = desc.GeneralRecord;
             entry.Height = desc.Height;
-            entry.Weight = desc.Weight;
             entry.Age = desc.Age;
             entry.Build = Loc.GetString($"build-type-{desc.Build.ToString().ToLowerInvariant()}");
 

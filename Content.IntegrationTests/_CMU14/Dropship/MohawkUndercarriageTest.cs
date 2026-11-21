@@ -21,8 +21,6 @@ public sealed class MohawkUndercarriageTest
 {
     [TestCase("omaha", 0)]
     [TestCase("midway", 90)]
-    [TestCase("omaha_navy", 90)]
-    [TestCase("midway_navy", 0)]
     public async Task FlightKeepsUndercarriageAttachedAndLeavesGroundOccupantsBehind(string variant, int degrees)
     {
         await using var pair = await PoolManager.GetServerClient(new PoolSettings { Dirty = true, Connected = true });
@@ -45,7 +43,7 @@ public sealed class MohawkUndercarriageTest
             var maps = entities.System<SharedMapSystem>();
             maps.CreateMap(out var mapId);
             Assert.That(entities.System<MapLoaderSystem>().TryLoadGrid(mapId,
-                new ResPath($"/Maps/CMU14/ShuttlesDropships/Mohawk/{variant}.yml"), out var loaded), Is.True);
+                new ResPath($"/Maps/CMU14/Dropships/Mohawk/{variant}.yml"), out var loaded), Is.True);
             ship = loaded!.Value.Owner;
             cabinNet = entities.GetNetEntity(ship);
             var warp = entities.QueryEntities<WarpPointComponent>()

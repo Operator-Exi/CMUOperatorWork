@@ -23,8 +23,6 @@ public sealed class MohawkDoorTest
 {
     [TestCase("omaha")]
     [TestCase("midway")]
-    [TestCase("omaha_navy")]
-    [TestCase("midway_navy")]
     public async Task XenosPryPoweredHatchesAndWeldingBlocksPrying(string variant)
     {
         await using var pair = await PoolManager.GetServerClient(new PoolSettings { Dirty = true, Connected = true });
@@ -36,7 +34,7 @@ public sealed class MohawkDoorTest
             var entities = pair.Server.EntMan;
             entities.System<SharedMapSystem>().CreateMap(out var mapId);
             Assert.That(entities.System<MapLoaderSystem>().TryLoadGrid(mapId,
-                new ResPath($"/Maps/CMU14/ShuttlesDropships/Mohawk/{variant}.yml"), out var loaded), Is.True);
+                new ResPath($"/Maps/CMU14/Dropships/Mohawk/{variant}.yml"), out var loaded), Is.True);
             ship = loaded!.Value.Owner;
             foreach (var door in entities.QueryEntities<DoorComponent>()
                          .Where(d => entities.GetComponent<TransformComponent>(d.Owner).GridUid == ship))

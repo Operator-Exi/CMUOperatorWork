@@ -35,7 +35,6 @@
     bounty: 1675
     reason: Weyland-Yutani black operations - asset recovery
     recordName: WY Field Operative (Unknown)
-    includePrints: true
     capturedFaxPaper: CMUPaperColonyAntagCaptured
   - type: SynthGunAccess
   mindRoles:
@@ -70,6 +69,8 @@
 - type: antag
   parent: CMUAntagColonyBase
   id: WeylandYutaniAgentRole
+  blacklistedGamemodes:
+  - DistressSignal
   name: cmu-antag-wy-agent-name
   setPreference: true
   objective: cmu-antag-wy-agent-objective
@@ -109,7 +110,6 @@
     bounty: 1625
     reason: Corporate espionage - theft of Weyland-Yutani research
     recordName: Laselle Operative (Unknown)
-    includePrints: true
     includeLanguages: true
     capturedFaxPaper: CMUPaperColonyAntagCaptured
   - type: SynthGunAccess
@@ -147,6 +147,8 @@
   id: CorporateSpyRole
   name: roles-antag-spy-name
   setPreference: true
+  blacklistedGamemodes:
+  - DistressSignal
   objective: roles-antag-spy-objective
 
 - type: startingGear

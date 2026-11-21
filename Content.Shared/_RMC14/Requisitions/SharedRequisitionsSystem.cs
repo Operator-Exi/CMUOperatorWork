@@ -56,6 +56,7 @@ public abstract partial class SharedRequisitionsSystem : EntitySystem
         {
             // TODO RMC14 initial money should depend on the scale too
             account.Balance += (int) ev.Delta * PointsScale;
+            CMUNotifyBalanceChanged(account); // CMU14
             Dirty(uid, account);
         }
     }
@@ -120,6 +121,7 @@ public abstract partial class SharedRequisitionsSystem : EntitySystem
             {
                 var oldBalance = comp.Balance;
                 comp.Balance = Math.Max(0, oldBalance + amount); // clamp so reqs don't pit fall when seeing -1 million
+                CMUNotifyBalanceChanged(comp); // CMU14
 #if DEBUG
                 if (oldBalance + amount < 0) // NOTE: temporary debug logging to find negative balance culprits
                     Log.Error($"[Requisitions] Negative balance: {oldBalance} of {amount}, for faction {comp.Faction}. Trace: {Environment.StackTrace}");
@@ -267,12 +269,14 @@ public abstract partial class SharedRequisitionsSystem : EntitySystem
         else
             account.Comp.Balance = Starting; // fallback: RMCCVars.RMCRequisitionsStartingBalance
 
+        CMUNotifyBalanceChanged(account.Comp); // CMU14
         Dirty(account);
     }
 
     private void OnRoundRestartCleanup(RoundRestartCleanupEvent ev)
     {
         _purchasesMap = null;
+        _roundPurchases.Clear(); // CMU14: replacing consoles never resets faction-wide purchase limits.
     }
 
     public void CreateSpecialDelivery(EntProtoId proto, string faction = "") // CMU14

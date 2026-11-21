@@ -6,11 +6,14 @@ using Content.Shared._RMC14.Entrenching;
 using Content.Shared._RMC14.Movement; // CMU14
 using Content.Shared._RMC14.Stun;
 using Content.Shared.CMU14.Yautja;
+using Content.Shared._RMC14.Xenonids.Devour; // CMU14
 using Content.Shared._RMC14.Xenonids.GasToggle;
 using Content.Shared._RMC14.Xenonids.Neurotoxin;
 using Content.Shared._RMC14.Xenonids.Rotate;
 using Content.Shared.ActionBlocker;
 using Content.Shared.Actions;
+using Content.Shared.Body.Systems; // CMU14
+using Content.Shared.Body.Components; // CMU14
 using Content.Shared.Chemistry.EntitySystems;
 using Content.Shared.Coordinates;
 using Content.Shared.Damage;
@@ -61,6 +64,7 @@ public abstract partial class SharedXenoTailStabSystem : EntitySystem
     [Dependency] private SharedPhysicsSystem _physics = default!;
     [Dependency] private SharedXenoHiveSystem _hive = default!;
     [Dependency] private SharedRMCLagCompensationSystem _lagCompensation = default!; // CMU14
+    [Dependency] private BloodstreamSystem _bloodstream = default!; // CMU14
 
     private const int AttackMask = (int)(CollisionGroup.MobMask | CollisionGroup.Opaque);
     private const int TailStabMaxTargets = 1;
@@ -146,7 +150,8 @@ public abstract partial class SharedXenoTailStabSystem : EntitySystem
         var mobs = EntityQueryEnumerator<MobStateComponent, FixturesComponent, PhysicsComponent, TransformComponent>();
         while (mobs.MoveNext(out var uid, out _, out var fixtures, out var body, out var xform))
         {
-            if (uid == stab.Owner || !body.CanCollide || xform.MapID != userCoords.MapId || _hive.IsMember(uid, hive))
+            if (uid == stab.Owner || !body.CanCollide || xform.MapID != userCoords.MapId || _hive.IsMember(uid, hive) ||
+                HasComp<DevouredComponent>(uid)) // CMU14: stomach occupants cannot consume an attack target slot
                 continue;
 
             var (coordinates, angle) = _lagCompensation.GetCoordinatesAngle(uid, actor?.PlayerSession, xform);
@@ -284,6 +289,9 @@ public abstract partial class SharedXenoTailStabSystem : EntitySystem
                 {
                     damaged = true;
                     _colorFlash.RaiseEffect(Color.Red, new List<EntityUid> { hit }, filter);
+
+                    if (stab.Comp.Bloodloss > FixedPoint2.Zero && TryComp<BloodstreamComponent>(hit, out var bloodstream))
+                        _bloodstream.TryModifyBloodLevel((hit, bloodstream), -stab.Comp.Bloodloss); // CMU14
                 }
             }
 

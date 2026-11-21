@@ -1,3 +1,4 @@
+using Content.Shared.CMU14.EntityReferences;
 using Content.Shared.Damage.Components;
 using Content.Server._RMC14.Emote;
 using Content.Server.Administration.Logs;
@@ -50,6 +51,7 @@ namespace Content.Server.CMU14.Yautja;
 
 public sealed partial class YautjaTrapSystem : EntitySystem
 {
+    [Dependency] private EntityReferenceSystem _references = default!;
     [Dependency] private IAdminLogManager _adminLog = default!;
     [Dependency] private ActionBlockerSystem _actionBlocker = default!;
     [Dependency] private AlertsSystem _alerts = default!;
@@ -75,7 +77,6 @@ public sealed partial class YautjaTrapSystem : EntitySystem
     [Dependency] private YautjaRitualSystem _ritual = default!;
     [Dependency] private YautjaPreyTrackingSystem _preyTracking = default!;
 
-    private const string YautjaInterferenceStatus = "YautjaInterference";
     private const string HuntingTrapInactiveState = "yauttrap0";
     private const string HuntingTrapArmedState = "yauttrap1";
     private const string HuntingTrapGrassState = "yauttrapgrass";
@@ -106,6 +107,8 @@ public sealed partial class YautjaTrapSystem : EntitySystem
 
     public override void Initialize()
     {
+        SubscribeLocalEvent<YautjaTrapComponent, ComponentStartup>(OnTrapStartup);
+        SubscribeLocalEvent<YautjaTrapComponent, ReferencedEntityTerminatingEvent>(OnTrapReferenceTerminating);
         SubscribeLocalEvent<YautjaTrapComponent, UseInHandEvent>(OnUseInHand);
         SubscribeLocalEvent<YautjaTrapComponent, YautjaTrapArmDoAfterEvent>(OnArmDoAfter);
         SubscribeLocalEvent<YautjaTrapComponent, YautjaTrapRangeSelectedEvent>(OnTrapRangeSelected);
@@ -120,6 +123,25 @@ public sealed partial class YautjaTrapSystem : EntitySystem
         SubscribeLocalEvent<RMCTetherComponent, YautjaTrapBreakFreeAlertEvent>(OnBreakFreeAlert);
         SubscribeLocalEvent<RMCTetherComponent, YautjaTrapBreakFreeDoAfterEvent>(OnBreakFreeDoAfter);
         SubscribeLocalEvent<RMCTetherComponent, ComponentShutdown>(OnTetherShutdown);
+    }
+
+    internal void SetTrapOwner(Entity<YautjaTrapComponent> trap, EntityUid? owner)
+    {
+        trap.Comp.TrapOwner = _references.WatchNullable(trap, owner);
+    }
+
+    private void OnTrapStartup(Entity<YautjaTrapComponent> trap, ref ComponentStartup args)
+    {
+        SetTrapOwner(trap, trap.Comp.TrapOwner);
+    }
+
+    private void OnTrapReferenceTerminating(Entity<YautjaTrapComponent> trap, ref ReferencedEntityTerminatingEvent args)
+    {
+        if (trap.Comp.TrapOwner != args.Entity)
+            return;
+
+        trap.Comp.TrapOwner = null;
+        Dirty(trap);
     }
 
     public override void Update(float frameTime)
@@ -489,7 +511,7 @@ public sealed partial class YautjaTrapSystem : EntitySystem
             return false;
         }
 
-        trap.Comp.TrapOwner = user;
+        SetTrapOwner(trap, user);
         trap.Comp.ArmedFaction = ResolveArmedFaction(user);
         trap.Comp.Armed = true;
         Dirty(trap);
@@ -744,9 +766,6 @@ public sealed partial class YautjaTrapSystem : EntitySystem
 
         if (trap.Comp.ForceXenoHelpEmote)
             _emote.TryEmoteWithChat(tripper, XenoHelpEmote, forceEmote: true);
-
-        if (trap.Comp.XenoInterferenceDuration > TimeSpan.Zero)
-            _status.TryAddStatusEffect(tripper, YautjaInterferenceStatus, trap.Comp.XenoInterferenceDuration, true);
     }
 
     private bool CanTriggerTrap(Entity<YautjaTrapComponent> trap, EntityUid tripper)

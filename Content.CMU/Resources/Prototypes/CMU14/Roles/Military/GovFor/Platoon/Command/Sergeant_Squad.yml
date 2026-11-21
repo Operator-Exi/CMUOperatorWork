@@ -14,6 +14,8 @@
   overwatchSortPriority: -5
   canBeAntag: false
   displayWeight: 5
+  access:
+  - CMUAccessMohawkRamp
   accessGroups:
   - AU14GovforFTL
 
@@ -76,7 +78,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
-    - NoEnglish
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - CMUProstheticLeftArm
     - CMUProstheticRightArm
     - CMUProstheticLeftLeg

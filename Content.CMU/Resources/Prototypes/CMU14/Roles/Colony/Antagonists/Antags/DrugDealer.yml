@@ -21,7 +21,6 @@
     bounty: 1225
     reason: Distribution of controlled substances - wanted alive for prosecution
     recordName: Narcotics Dealer (Unknown)
-    includePrints: true
     includeLanguages: true
     deadCounts: false
     capturedFaxPaper: CMUPaperColonyAntagCaptured
@@ -63,6 +62,8 @@
   id: DrugDealerRole
   name: roles-antag-dealer-name
   setPreference: true
+  blacklistedGamemodes:
+  - DistressSignal
   objective: roles-antag-dealer-objective
 
 - type: startingGear

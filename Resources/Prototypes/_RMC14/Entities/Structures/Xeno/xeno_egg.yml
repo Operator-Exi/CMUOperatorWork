@@ -8,6 +8,7 @@
     snap:
     - Wall
   components:
+  - type: CMUThreatStructure # CMU14: counted by the Early Warning Joe's Purge the Nest
   - type: FixedIdentity
     name: cmu-job-name-xeno-unknown
     whitelist:
@@ -85,6 +86,8 @@
       enum.XenoParasiteGhostUI.Key:
         type: XenoParasiteGhostBui
         requireInputValidation: false
+        # CMU14: ghosts inside walls fail the range check and get this closed on them a frame after it opens
+        interactionRange: 0
   - type: RequireProjectileTarget
   - type: XenoInhandSprite
     stateName: egg

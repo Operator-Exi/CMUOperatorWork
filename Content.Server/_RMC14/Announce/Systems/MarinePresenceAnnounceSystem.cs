@@ -1,4 +1,5 @@
 using System.Globalization;
+using Content.Server.CMU14.Chat; // CMU14
 using System.Linq;
 using Content.Server._RMC14.Marines;
 using Content.Shared._RMC14.Marines;
@@ -11,12 +12,14 @@ using Content.Shared.Bed.Cryostorage;
 using Content.Shared.StationRecords;
 using Content.Shared.StationRecords.Components;
 using Content.Shared.StationRecords.Systems;
+using Content.Shared.CMU14.Yautja;
 using Content.Server.CMU14.Marines.Roles.Chevrons;
 
 namespace Content.Server._RMC14.Announce
 {
     public sealed partial class MarinePresenceAnnounceSystem : EntitySystem
     {
+        [Dependency] private CMUApolloAnnouncementSystem _apollo = default!; // CMU14
         [Dependency] private ARESCoreSystem _aresCore = default!;
         [Dependency] private MarineAnnounceSystem _marineAnnounce = default!;
         [Dependency] private SquadSystem _squad = default!;
@@ -28,7 +31,14 @@ namespace Content.Server._RMC14.Announce
 
         public void AnnounceLateJoin(bool lateJoin, bool silent, EntityUid mob, string jobId, string jobName, JobPrototype jobPrototype)
         {
+            // CMU14: yautja join through the standard spawn path but must never be announced to marines.
+            if (HasComp<YautjaComponent>(mob))
+                return;
+
             if (!_aresCore.TryGetMarineARES(out var ares) || ares == null)
+                return;
+
+            if (IsCMULateJoinAnnouncementExcluded(mob)) // CMU14
                 return;
 
             var aresUid = ares.Value.Owner;
@@ -52,6 +62,7 @@ namespace Content.Server._RMC14.Announce
                 }
                 else
                 {
+                    var faction = _apollo.PresenceFaction(mob, jobPrototype); // CMU14
                     var departmentPrototypes = _prototypeManager.EnumeratePrototypes<DepartmentPrototype>().ToList();
                     var processedChannels = new HashSet<ProtoId<RadioChannelPrototype>>();
                     bool departmentChannelFound = false;
@@ -75,22 +86,22 @@ namespace Content.Server._RMC14.Announce
 
                         departmentChannelFound = true;
 
-                        _marineAnnounce.AnnounceRadio(aresUid,
+                        _marineAnnounce.AnnounceApolloRadio(aresUid, // CMU14
                             Loc.GetString("rmc-latejoin-arrival-announcement",
                             ("character", rankName),
                             ("entity", mob),
                             ("job", CultureInfo.CurrentCulture.TextInfo.ToTitleCase(jobName))),
-                            channelId.Value);
+                            channelId.Value, faction);
                     }
 
                     if (!departmentChannelFound || isHead)
                     {
-                        _marineAnnounce.AnnounceRadio(aresUid,
+                        _marineAnnounce.AnnounceApolloRadio(aresUid, // CMU14
                             Loc.GetString("rmc-latejoin-arrival-announcement",
                             ("character", rankName),
                             ("entity", mob),
                             ("job", CultureInfo.CurrentCulture.TextInfo.ToTitleCase(jobName))),
-                            CommonChannel);
+                            CommonChannel, faction);
                     }
                 }
             }
@@ -112,6 +123,7 @@ namespace Content.Server._RMC14.Announce
             }
 
             var rankName = _chevron.GetAnnouncementShortName(ent.Owner, jobProto?.ID);
+            var faction = _apollo.PresenceFaction(ent.Owner, jobProto); // CMU14
 
             var departmentPrototypes = _prototypeManager.EnumeratePrototypes<DepartmentPrototype>().ToList();
             var processedChannels = new HashSet<ProtoId<RadioChannelPrototype>>();
@@ -138,32 +150,32 @@ namespace Content.Server._RMC14.Announce
 
                     departmentChannelFound = true;
 
-                    _marineAnnounce.AnnounceRadio(aresUid,
+                    _marineAnnounce.AnnounceApolloRadio(aresUid, // CMU14
                         Loc.GetString("rmc-earlyleave-cryo-announcement",
                         ("character", rankName),
                         ("entity", ent.Owner),
                         ("job", CultureInfo.CurrentCulture.TextInfo.ToTitleCase(jobName))),
-                        channelId.Value);
+                        channelId.Value, faction);
                 }
 
                 if (!departmentChannelFound || isHead)
                 {
-                    _marineAnnounce.AnnounceRadio(aresUid,
+                    _marineAnnounce.AnnounceApolloRadio(aresUid, // CMU14
                         Loc.GetString("rmc-earlyleave-cryo-announcement",
                         ("character", rankName),
                         ("entity", ent.Owner),
                         ("job", CultureInfo.CurrentCulture.TextInfo.ToTitleCase(jobName))),
-                        CommonChannel);
+                        CommonChannel, faction);
                 }
             }
             else
             {
-                _marineAnnounce.AnnounceRadio(aresUid,
+                _marineAnnounce.AnnounceApolloRadio(aresUid, // CMU14
                     Loc.GetString("rmc-earlyleave-cryo-announcement",
                     ("character", rankName),
                     ("entity", ent.Owner),
                     ("job", CultureInfo.CurrentCulture.TextInfo.ToTitleCase(jobName))),
-                    CommonChannel);
+                    CommonChannel, faction);
             }
         }
     }

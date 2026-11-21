@@ -68,7 +68,12 @@
     - FrontalLisp
     - NonResuscitable
     - Epilepsy
-    - NoEnglish
+    - CMUHeartCondition
+    - CMUHemophilia
+    - CMUHardOfHearing
+    - CMUClaustrophobic
+    - CMUFearOfBlood
+    - CMUWeakThrow
     - SlowRunner
     - Anemic
     - Asthmatic

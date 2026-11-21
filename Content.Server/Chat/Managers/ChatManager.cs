@@ -156,7 +156,7 @@ internal sealed partial class ChatManager : IChatManager
 
     public void SendAdminAnnouncement(string message, AdminFlags? flagBlacklist, AdminFlags? flagWhitelist)
     {
-        var clients = _adminManager.ActiveAdmins.Where(p =>
+        var clients = _adminManager.ActiveAdmins.Where(p => // CMU14
         {
             var adminData = _adminManager.GetAdminData(p);
 
@@ -179,6 +179,14 @@ internal sealed partial class ChatManager : IChatManager
         _adminLogger.Add(LogType.Chat, LogImpact.Low, $"Admin announcement: {message}");
     }
 
+    // CMU14: unescaped variant of SendAdminAnnouncement for command links; same audience, the caller must escape all dynamic text
+    public void SendAdminAnnouncementNoFormatOrEscape(string message)
+    {
+        var clients = _adminManager.ActiveAdmins.Select(p => p.Channel);
+
+        ChatMessageToMany(ChatChannel.Admin, message, message, default, false, true, clients);
+    }
+
     public void SendAdminAnnouncementMessage(ICommonSession player, string message, bool suppressLog = true)
     {
         var wrappedMessage = Loc.GetString("chat-manager-send-admin-announcement-wrap-message",
@@ -189,7 +197,7 @@ internal sealed partial class ChatManager : IChatManager
 
     public void SendAdminAlert(string message)
     {
-        var clients = _adminManager.ActiveAdmins
+        var clients = _adminManager.ActiveAdminsWithFlag(AdminFlags.AdminAlerts) // cmu edit
             .Where(p => _adminManager.HasAdminFlag(p, AdminFlags.EditNotes)) // RMC14
             .Select(p => p.Channel);
         var wrappedMessage = Loc.GetString("chat-manager-send-admin-announcement-wrap-message",
@@ -200,7 +208,7 @@ internal sealed partial class ChatManager : IChatManager
 
     public void SendAdminAlertNoFormatOrEscape(string message)
     {
-        var clients = _adminManager.ActiveAdmins.Select(p => p.Channel);
+        var clients = _adminManager.ActiveAdminsWithFlag(AdminFlags.AdminAlerts).Select(p => p.Channel); // cmu edit
 
         ChatMessageToMany(ChatChannel.AdminAlert, message, message, default, false, true, clients);
     }
@@ -239,7 +247,7 @@ internal sealed partial class ChatManager : IChatManager
 
     public void SendHookAdmin(string sender, string message)
     {
-        var clients = _adminManager.ActiveAdmins.Select(p => p.Channel);
+        var clients = _adminManager.ActiveAdminsWithFlag(AdminFlags.Adminchat).Select(p => p.Channel); // cmu edit
 
         var wrappedMessage = Loc.GetString("chat-manager-send-hook-admin-wrap-message", ("senderName", sender), ("message", FormattedMessage.EscapeText(message)));
         foreach (var client in clients)
@@ -343,13 +351,13 @@ internal sealed partial class ChatManager : IChatManager
 
     private void SendAdminChat(ICommonSession player, string message)
     {
-        if (!_adminManager.IsAdmin(player))
+        if (!_adminManager.HasAdminFlag(player, AdminFlags.Adminchat)) // cmu edit: admin chat needs its flag
         {
             _adminLogger.Add(LogType.Chat, LogImpact.Extreme, $"{player:Player} attempted to send admin message but was not admin");
             return;
         }
 
-        var clients = _adminManager.ActiveAdmins.Select(p => p.Channel);
+        var clients = _adminManager.ActiveAdminsWithFlag(AdminFlags.Adminchat).Select(p => p.Channel); // cmu edit
         var wrappedMessage = Loc.GetString("chat-manager-send-admin-chat-wrap-message",
                                         ("adminChannelName", Loc.GetString("chat-manager-admin-channel-name")),
                                         ("playerName", player.Name), ("message", FormattedMessage.EscapeText(message)));

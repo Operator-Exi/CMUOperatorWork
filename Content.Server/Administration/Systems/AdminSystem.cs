@@ -103,7 +103,8 @@ public sealed partial class AdminSystem : EntitySystem
                 continue;
 
             if (!_playerManager.TryGetPlayerData(id, out var playerData))
-                return;
+                //return; // CMU14: one disconnected player must not abort the rebuild and strand the rest on stale last-round entries
+                continue;
 
             _playerManager.TryGetSessionById(id, out var session);
             _playerList[id] = GetPlayerInfo(playerData, session);
@@ -111,7 +112,7 @@ public sealed partial class AdminSystem : EntitySystem
 
         var updateEv = new FullPlayerListEvent() { PlayersInfo = _playerList.Values.ToList() };
 
-        foreach (var admin in _adminManager.ActiveAdmins)
+        foreach (var admin in _adminManager.ActiveAdminsWithFlag(AdminFlags.PlayerList)) // cmu edit
         {
             RaiseNetworkEvent(updateEv, admin.Channel);
         }
@@ -133,7 +134,7 @@ public sealed partial class AdminSystem : EntitySystem
             PlayerInfo = _playerList[player.UserId]
         };
 
-        foreach (var admin in _adminManager.ActiveAdmins)
+        foreach (var admin in _adminManager.ActiveAdminsWithFlag(AdminFlags.PlayerList)) // cmu edit
         {
             RaiseNetworkEvent(playerInfoChangedEvent, admin.Channel);
         }
@@ -167,9 +168,13 @@ public sealed partial class AdminSystem : EntitySystem
     {
         UpdatePanicBunker();
 
-        if (!obj.IsAdmin)
+        if (!obj.IsAdmin || obj.Flags is not { } flags || (flags & AdminFlags.PlayerList) == 0) // cmu edit: needs the player list flag
         {
-            RaiseNetworkEvent(new FullPlayerListEvent(), obj.Player.Channel);
+            // CMU14: an ahelp-capable in-game admin gets the stripped list instead of a blind window
+            if (CMUIsIngameAhelpAdmin(obj.Player))
+                CMUSendIngamePlayerList(obj.Player);
+            else
+                RaiseNetworkEvent(new FullPlayerListEvent(), obj.Player.Channel);
             return;
         }
 

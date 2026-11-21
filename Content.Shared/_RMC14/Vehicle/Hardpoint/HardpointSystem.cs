@@ -569,8 +569,10 @@ public sealed partial class HardpointSystem : EntitySystem
         frameIntegrity.MaxIntegrity = totalMaxIntegrity;
         // CMU14: fitting or refreshing hardpoints cannot restore a permanently wrecked hull.
         frameIntegrity.Integrity = IsDestroyedBeyondRepair(vehicle) ? 0 : Math.Clamp(totalIntegrity, 0f, totalMaxIntegrity);
+        CMUMarkPermanentWreck(vehicle, frameIntegrity, previous); // CMU14
 
-        if (Math.Abs(previous - frameIntegrity.Integrity) < 0.01f &&
+        if ((previous > 0f) == (frameIntegrity.Integrity > 0f) && // CMU14: always publish reaching zero.
+            Math.Abs(previous - frameIntegrity.Integrity) < 0.01f &&
             Math.Abs(previousMax - frameIntegrity.MaxIntegrity) < 0.01f)
         {
             return false;
@@ -1470,6 +1472,36 @@ public sealed partial class HardpointSystem : EntitySystem
         return slot.Whitelist == null || _whitelist.IsValid(slot.Whitelist, item);
     }
 
+    // CMU14 method
+    internal bool IsShapeValidHardpoint(EntityUid item, HardpointSlotsComponent slots, HardpointSlot slot)
+    {
+        if (!TryComp<HardpointItemComponent>(item, out var hardpoint))
+            return false;
+
+        if (slots.VehicleFamily is not null)
+        {
+            if (hardpoint.VehicleFamily is not { } vehicleFamily)
+                return false;
+
+            if (vehicleFamily != slots.VehicleFamily.Value)
+                return false;
+        }
+
+        if (slot.SlotType is not null)
+        {
+            if (hardpoint.SlotType is not { } slotType)
+                return false;
+
+            if (slotType != slot.SlotType.Value)
+                return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(slot.HardpointType))
+            return true;
+
+        return string.Equals(hardpoint.HardpointType, slot.HardpointType, StringComparison.OrdinalIgnoreCase);
+    }
+
     private bool HasAllRequired(EntityUid uid, HardpointSlotsComponent component, ItemSlotsComponent? itemSlots = null)
     {
         if (component.Slots.Count == 0)
@@ -1714,8 +1746,11 @@ public sealed partial class HardpointSystem : EntitySystem
         var wasFunctional = IsHardpointFunctional(hardpoint, integrity);
         var previous = integrity.Integrity;
         integrity.Integrity = MathF.Max(0f, integrity.Integrity - amount);
+        // CMU14: a stripped hull also needs the same permanent destruction transition.
+        if (hardpoint == vehicle)
+            CMUMarkPermanentWreck(vehicle, integrity, previous);
 
-        if (Math.Abs(previous - integrity.Integrity) < 0.01f)
+        if (integrity.Integrity > 0f && Math.Abs(previous - integrity.Integrity) < 0.01f) // CMU14
             return false;
 
         Dirty(hardpoint, integrity);
@@ -1733,6 +1768,7 @@ public sealed partial class HardpointSystem : EntitySystem
 
         UpdateHardpointUi(vehicle);
         HandleHardpointDamageSideEffects(vehicle, hardpoint, amount, integrity, wasFunctional);
+        CMUOnHardpointDamaged(vehicle, hardpoint, previous - integrity.Integrity); // CMU14: VBIED damage trigger
         return true;
     }
 
@@ -1813,7 +1849,7 @@ public sealed partial class HardpointSystem : EntitySystem
         HardpointSlotsComponent hardpoints,
         InteractUsingEvent args)
     {
-        if (TryComp(owner, out HardpointIntegrityComponent? integrity) &&
+        if (TryComp(owner, out HardpointIntegrityComponent? integrity) && (integrity.Integrity > 0f || IsVehicleFrame(owner)) && // CMU14
             TryStartFailureRepair((owner, integrity), args))
         {
             return true;
@@ -1825,7 +1861,7 @@ public sealed partial class HardpointSystem : EntitySystem
         foreach (var mountedSlot in _topology.GetMountedSlots(owner, hardpoints, itemSlots))
         {
             if (mountedSlot.Item is not { } item ||
-                !TryComp(item, out HardpointIntegrityComponent? mountedIntegrity))
+                !TryComp(item, out HardpointIntegrityComponent? mountedIntegrity) || mountedIntegrity.Integrity <= 0f) // CMU14
             {
                 continue;
             }
@@ -1986,7 +2022,7 @@ public sealed partial class HardpointSystem : EntitySystem
         foreach (var mountedSlot in _topology.GetMountedSlots(ent.Owner, hardpoints, itemSlots))
         {
             if (mountedSlot.Item is not { } item ||
-                !TryComp(item, out HardpointIntegrityComponent? integrity))
+                !TryComp(item, out HardpointIntegrityComponent? integrity) || integrity.Integrity <= 0f) // CMU14
             {
                 continue;
             }
@@ -1999,7 +2035,7 @@ public sealed partial class HardpointSystem : EntitySystem
         {
             if (mountedSlot.Item is not { } item ||
                 !TryComp(item, out HardpointIntegrityComponent? integrity) ||
-                !NeedsIntegrityRepair(integrity) ||
+                integrity.Integrity <= 0f || !NeedsIntegrityRepair(integrity) || // CMU14: skip scrapped modules.
                 !_tool.HasQuality(args.Used, integrity.RepairToolQuality) ||
                 !HasComp<BlowtorchComponent>(args.Used))
             {
@@ -2160,8 +2196,10 @@ public sealed partial class HardpointSystem : EntitySystem
         var previousIntegrity = ent.Comp.Integrity;
         var capacityFloor = MathF.Max(previousIntegrity,
             ent.Comp.NativeMaxIntegrity * Math.Clamp(ent.Comp.MinimumRepairCapacityFraction, 0f, 1f));
+        // CMU14: modules wear four times faster, with double wear below a quarter of factory integrity.
+        var wearScale = isFrame ? 1f : previousIntegrity < ent.Comp.NativeMaxIntegrity * 0.25f ? 8f : 4f;
         var wear = MathF.Min(MathF.Max(0f, ent.Comp.MaxIntegrity - capacityFloor),
-            repairAmount * Math.Clamp(ent.Comp.RepairWearFraction, 0f, 1f));
+            repairAmount * Math.Clamp(ent.Comp.RepairWearFraction, 0f, 1f) * wearScale);
         ent.Comp.RepairWear += wear;
         ent.Comp.MaxIntegrity -= wear;
         ent.Comp.Integrity = MathF.Min(ent.Comp.MaxIntegrity, ent.Comp.Integrity + repairAmount);
@@ -2323,7 +2361,7 @@ public sealed partial class HardpointSystem : EntitySystem
                 continue;
             }
 
-            if (NeedsIntegrityRepair(integrity))
+            if (integrity.Integrity > 0f && NeedsIntegrityRepair(integrity)) // CMU14
                 return true;
         }
 

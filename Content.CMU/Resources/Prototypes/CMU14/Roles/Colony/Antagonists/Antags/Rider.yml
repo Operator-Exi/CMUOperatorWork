@@ -48,6 +48,8 @@
   id: RiderRole
   name: roles-antag-rider-role-name
   setPreference: true
+  blacklistedGamemodes:
+  - DistressSignal
   objective: roles-antag-rider-objective
 
 # The hide shrugs off most physical trauma; fire and chems land fully.
@@ -66,9 +68,6 @@
   suffix: CMU
   components:
   - type: Rider
-  - type: GuideHelp # Guidebook
-    guides:
-    - CMUGuideRoleRider
   - type: GhostRole
     allowMovement: true
     allowSpeech: true
@@ -362,8 +361,6 @@
 
 - type: entity
   id: ActionRiderSustain
-  name: Sustain
-  description: Pour strength into the flesh around you. Damage and the wounds beneath it close together. Your rope, to match your stick. Costs 20 grip.
   components:
   - type: Action
     itemIconStyle: NoItem

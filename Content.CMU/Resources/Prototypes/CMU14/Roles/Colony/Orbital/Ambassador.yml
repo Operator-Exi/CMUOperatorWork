@@ -5,6 +5,9 @@
   roundForce: CCA
   roundRole: CivilianAmbassadorCCA
   roundComponents:
+  - type: CMUExtraLanguages # the ambassador's own allegiance languages, on top of the colony's
+    languages:
+    - Swahili
   - type: AU14CallsignRole
     exempt: true
   - type: Skills
@@ -50,6 +53,7 @@
   - AUPrisonStaff
   access:
   - AU14AccessColonyAmbassador
+  - AU14AccessAmbassadorCCA
   roleWeight: 0.25
 
 - type: startingGear
@@ -104,6 +108,9 @@
   roundForce: ICSC
   roundRole: CivilianAmbassadorICSC
   roundComponents:
+  - type: CMUExtraLanguages # the ambassador's own allegiance languages, on top of the colony's
+    languages:
+    - French
   - type: AU14CallsignRole
     exempt: true
   - type: Skills
@@ -149,6 +156,7 @@
   - AUPrisonStaff
   access:
   - AU14AccessColonyAmbassador
+  - AU14AccessAmbassadorICSC
   roleWeight: 0.25
 
 - type: startingGear
@@ -203,6 +211,10 @@
   roundForce: TWE
   roundRole: CivilianAmbassadorTWE
   roundComponents:
+  - type: CMUExtraLanguages # the ambassador's own allegiance languages, on top of the colony's
+    languages:
+    - English
+    - Japanese
   - type: AU14CallsignRole
     exempt: true
   - type: Skills
@@ -248,6 +260,7 @@
   - AUPrisonStaff
   access:
   - AU14AccessColonyAmbassador
+  - AU14AccessAmbassadorTWE
   roleWeight: 0.25
 
 - type: startingGear
@@ -300,6 +313,10 @@
   roundForce: UA
   roundRole: CivilianAmbassadorUA
   roundComponents:
+  - type: CMUExtraLanguages # the ambassador's own allegiance languages, on top of the colony's
+    languages:
+    - English
+    - Spanish
   - type: AU14CallsignRole
     exempt: true
   - type: Skills
@@ -346,6 +363,7 @@
   - AUPrisonStaff
   access:
   - AU14AccessColonyAmbassador
+  - AU14AccessAmbassadorUA
   roleWeight: 0.25
 
 - type: startingGear
@@ -398,6 +416,10 @@
   roundForce: UPP
   roundRole: CivilianAmbassadorUPP
   roundComponents:
+  - type: CMUExtraLanguages # the ambassador's own allegiance languages, on top of the colony's
+    languages:
+    - Mandarin
+    - Russian
   - type: AU14CallsignRole
     exempt: true
   - type: Skills
@@ -443,6 +465,7 @@
   - AUPrisonStaff
   access:
   - AU14AccessColonyAmbassador
+  - AU14AccessAmbassadorUPP
   roleWeight: 0.25
 
 - type: startingGear

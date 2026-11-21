@@ -153,8 +153,11 @@ public sealed partial class CMUZLevelsSystem
         {
             var uid = _pendingProbeViewers.Dequeue();
             _queuedProbeViewers.Remove(uid);
+            // Paused viewers are skipped, except ones someone is looking through: a mapper's ghost sits on a paused
+            // map, and still needs the floors below sent to see them.
             if (TerminatingOrDeleted(uid) || !TryComp(uid, out CMUZLevelViewerComponent? viewer) ||
-                !TryComp(uid, out TransformComponent? xform) || MetaData(uid).EntityPaused) continue;
+                !TryComp(uid, out TransformComponent? xform) ||
+                MetaData(uid).EntityPaused && !HasViewerProbeSubscribers(uid)) continue;
             viewers++;
             SyncViewerProbes((uid, viewer), xform);
             probeEyes += UpdateProbeEyes(uid, viewer, _transform.GetWorldPosition(xform), GetViewerProbeOffset(uid));
@@ -353,6 +356,14 @@ public sealed partial class CMUZLevelsSystem
 
     private void OnViewerParentChange(Entity<CMUZLevelViewerComponent> ent, ref EntParentChangedMessage args)
     {
+        if (args.OldMapId == args.Transform.MapUid)
+        {
+            // Reparenting on the same map does not invalidate existing probe maps.
+            // Keep their subscriptions while budgeted discovery refreshes visibility.
+            QueueProbeRefresh(ent.Owner);
+            return;
+        }
+
         // Parent changes are also raised while an entire grid is recursively
         // transferred between maps. Updating immediately can add/remove probe
         // eyes while that transform hierarchy is still being enumerated,
@@ -1157,7 +1168,8 @@ public sealed partial class CMUZLevelsSystem
                 _probeOpeningGrids,
                 _map,
                 _transform,
-                TilDefMan);
+                TilDefMan,
+                maxOpenings: MaxProbeOpeningLosChecks + 1);
         }
         else
         {
@@ -1169,7 +1181,8 @@ public sealed partial class CMUZLevelsSystem
                 _probeOpeningGrids,
                 _map,
                 _transform,
-                TilDefMan);
+                TilDefMan,
+                maxOpenings: MaxProbeOpeningLosChecks + 1);
         }
 
         if (Prof.IsEnabled)
@@ -1177,6 +1190,11 @@ public sealed partial class CMUZLevelsSystem
 
         if (_probeOpeningCandidates.Count == 0)
             return false;
+
+        // One aperture beyond the LOS budget already keeps the subscription alive. Stop enumerating
+        // there: neither additional candidates nor raycasts can change that conservative decision.
+        if (_probeOpeningCandidates.Count > MaxProbeOpeningLosChecks)
+            return true;
 
         if (Prof.IsEnabled)
         {
@@ -1200,9 +1218,7 @@ public sealed partial class CMUZLevelsSystem
                 return true;
         }
 
-        // Unchecked apertures may still be visible. Keep their probe subscription when the
-        // point-sample budget is exhausted; false is reserved for the existing fully checked policy.
-        return checkCount < _probeOpeningCandidates.Count;
+        return false;
     }
 
     private bool HasZOpeningNear(EntityUid map, Vector2 globalPos)

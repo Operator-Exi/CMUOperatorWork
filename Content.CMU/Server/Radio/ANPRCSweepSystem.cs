@@ -1,7 +1,8 @@
 using System.Linq;
 using System.Numerics;
-using Content.Server._RMC14.TacticalMap;
 using Content.Shared.PowerCell;
+using Content.Server.CMU14.Round;
+using Content.Server.GameTicking;
 using Content.Server.Radio;
 using Content.Shared.CMU14.CCVar;
 using Content.Shared.CMU14.Radio;
@@ -18,8 +19,8 @@ namespace Content.Server.CMU14.Radio;
 // but the set can only do one job at a time: while it sweeps it will not transmit and
 // it carries no traffic on the operator's own nets. a fix is built out of intercepted
 // lines, each worth one hit, so a net is found by listening to it talk - not by being
-// near it. once fixed, every line on that net gives the set a bearing to the speaker and
-// banks a trial for breaking the net's key (ANPRCCryptoSystem.Analysis)
+// near it. once fixed, manpack lines on that net give the set a rough bearing to the speaker,
+// and every line banks a trial for breaking the net's key (ANPRCCryptoSystem.Analysis)
 public sealed partial class ANPRCSweepSystem : EntitySystem
 {
     [Dependency] private IGameTiming _timing = default!;
@@ -31,7 +32,8 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
     [Dependency] private ANPRCFrequencyPlanSystem _freqPlan = default!;
     [Dependency] private ANPRCCryptoSystem _crypto = default!;
     [Dependency] private AU14CommsToggleSystem _comms = default!;
-    [Dependency] private TacticalMapSystem _tacticalMap = default!;
+    [Dependency] private GameTicker _ticker = default!;
+    [Dependency] private AuRoundSystem _auRound = default!;
 
     // recent emissions on each frequency, one per line. kept per line rather than one per
     // frequency: a squad shares a net, and the far man talking last must not hide the near
@@ -71,10 +73,10 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
         var channel = args.Channel;
         var reach = 1f;
         var encrypted = _comms.EnabledOn(channel) && !string.IsNullOrEmpty(channel.Faction);
-        var bearingVisible = true;
+        var bearingVisible = false;
 
-        // a manpack sets its own power and security. a secured SC or CT set keeps its zero-DF
-        // promise here too: a fixed net still gives no bearing on it (FH does leak one)
+        // only a manpack puts out enough to take a bearing on, headsets never give one away.
+        // secured SC/CT and BURST lines give nothing either (FH does leak one)
         if (TryComp(args.RadioSource, out ANPRCRadioComponent? pack))
         {
             reach = pack.TxPower.RangeMultiplier();
@@ -84,7 +86,7 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
                           _crypto.HasMatchingCrypto(args.RadioSource, channel);
 
             encrypted = secured;
-            bearingVisible = !secured || pack.Mode == RadioMode.FrequencyHopping;
+            bearingVisible = !pack.Burst && (!secured || pack.Mode == RadioMode.FrequencyHopping);
         }
 
         RecordEmission(
@@ -98,16 +100,18 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
 
     /// <summary>
     ///     A line on a raw frequency. Raw frequencies carry no COMSEC, so it is never encrypted; the
-    ///     speaker's own manpack, if worn, sets how far it carries.
+    ///     speaker's own manpack, if worn, sets how far it carries and whether it gives a bearing.
     /// </summary>
     public void RecordEmission(EntityUid source, RadioFrequency frequency)
     {
-        var reach = TryComp(source, out WearingANPRCComponent? wearing) &&
-                    TryComp(wearing.Radio, out ANPRCRadioComponent? pack)
-            ? pack.TxPower.RangeMultiplier()
-            : 1f;
+        ANPRCRadioComponent? pack = null;
 
-        RecordEmission(source, frequency, reach, false, true, null);
+        if (TryComp(source, out WearingANPRCComponent? wearing))
+            TryComp(wearing.Radio, out pack);
+
+        var reach = pack?.TxPower.RangeMultiplier() ?? 1f;
+
+        RecordEmission(source, frequency, reach, false, pack is { Burst: false }, null);
     }
 
     private void RecordEmission(
@@ -169,7 +173,7 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
                 _crypto.BankTrial(uid, faction);
 
             if (bearingVisible)
-                ReportBearing((uid, radio), frequency, emission, position, faction);
+                ReportBearing((uid, radio), frequency, emission, position);
         }
     }
 
@@ -177,9 +181,15 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
         Entity<ANPRCRadioComponent> ent,
         RadioFrequency frequency,
         BandEmission emission,
-        Vector2 position,
-        string? faction)
+        Vector2 position)
     {
+        if (!DirectionFindingAllowed())
+            return;
+
+        // a staked set has nobody to tell
+        if (!TryGetOperator(ent, out var wearer))
+            return;
+
         var radio = ent.Comp;
         var now = _timing.CurTime;
 
@@ -192,32 +202,28 @@ public sealed partial class ANPRCSweepSystem : EntitySystem
         var degrees = (MathF.Atan2(offset.X, offset.Y) * 180f / MathF.PI + 360f) % 360f;
         var sector = (int) MathF.Round(degrees / 45f) % Compass.Length;
 
-        // a rough range, not a fix: to the nearest ten metres, never closer than ten
-        var distance = Math.Max(10, (int) MathF.Round(offset.Length() / 10f) * 10);
+        // a band, not a range. one bearing says "somewhere out that way", it takes two from
+        // different spots crossed on the map to actually find anyone
+        var distance = offset.Length();
+        var band = distance <= radio.FixedNetDFNearRange ? "near"
+            : distance <= radio.FixedNetDFMidRange ? "mid"
+            : "far";
 
-        if (TryGetOperator(ent, out var wearer))
-        {
-            _anprcChat.Notice(
-                Loc.GetString(
-                    "anprc-fixed-net-bearing",
-                    ("net", GetChannelName(frequency)),
-                    ("bearing", Compass[sector]),
-                    ("distance", distance)),
-                wearer);
-        }
+        _anprcChat.Notice(
+            Loc.GetString(
+                "anprc-fixed-net-bearing",
+                ("net", GetChannelName(frequency)),
+                ("bearing", Compass[sector]),
+                ("band", band)),
+            wearer);
+    }
 
-        // the ops map sees it too, briefly, as any other DF fix does
-        if (string.IsNullOrEmpty(radio.OperatorFaction) || TerminatingOrDeleted(emission.Source))
-            return;
-
-        var viewer = radio.OperatorFaction.ToUpperInvariant();
-
-        if (_tacticalMap.CreateFactionIntelBlip(emission.Source, (faction ?? string.Empty).ToLowerInvariant(), viewer, snapshot: true) is not { } location)
-            return;
-
-        Timer.Spawn(
-            radio.FixedNetDFBlipDuration,
-            () => _tacticalMap.EraseFactionIntelBlip(location.GridId, location.Key, viewer));
+    // the preset can switch DF off for the round. ticker preset is still null through AU round
+    // start, SelectedPreset covers that window
+    public bool DirectionFindingAllowed()
+    {
+        var preset = _ticker.CurrentPreset ?? _ticker.Preset ?? _auRound.SelectedPreset;
+        return preset?.AnprcDirectionFinding ?? true;
     }
 
     private static bool Hears(ANPRCRadioComponent radio, Vector2 position, MapId map, BandEmission emission)

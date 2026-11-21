@@ -35,6 +35,16 @@
   - [bold]Robotic limbs[/bold] need [bold]15 metal sheets[/bold] loaded into the printer instead.
   - The printer only makes the limb. Attaching it is surgery; see [textlink="Limb Surgery" link="CMUGuideSurgeryLimbs"].
 
+  ## Chemical Synthesis Unit
+  <Box>
+    <GuideEntityEmbed Entity="CMUChemicalRecipeMachine" Caption="Chemical synthesis unit"/>
+  </Box>
+  The chemical synthesis unit reproduces a pill's formulation from a recipe sheet and starting chemicals. It needs power.
+  - Use a pill on a ChemMaster to print a recipe sheet for one dose. The sheet lists the ingredients and steps for that dose. If you edit the formulation, include the ingredients and catalysts required for the new output.
+  - Insert the sheet into the synthesis unit. Put the listed starting chemicals in a beaker, insert it, and select [bold]Load chemicals from beaker[/bold]. Repeat with other beakers as needed. Only chemicals still needed by the recipe are transferred into internal storage.
+  - Insert an empty beaker with enough capacity and select [bold]Synthesize into beaker[/bold]. Consumed ingredients are used up; catalysts remain in storage. Transfer the resulting mixture to the ChemMaster to make pills.
+  - A machine board is available from electronics vendors. A complete unit can also be ordered from the ASRS Research category; open its crate with a crowbar.
+
   ## Portable Dialysis
   <Box>
     <GuideEntityEmbed Entity="RMCPortableDialysis" Caption="Portable dialysis machine"/>
@@ -52,6 +62,6 @@
   The cryo pod injects medicine from an inserted beaker and chills the patient with gas from a connected freezer.
   - Load a beaker with the cryogenic medicine needed for the patient's injuries, then put the patient inside.
   - The new cryogenic medicines start healing when the patient's body reaches 213 K or colder. Opporozidone needs 150 K or colder.
-  - Cryoxadone treats suffocation and blood loss; Aloxadone treats burns; Traumoxadone treats brute damage; Urishoxadone treats poison and radiation; Doxarubixadone treats cellular damage; Necrosol heals multiple injuries and regenerates missing native limbs; Opporozidone reverses rot in dead patients.
-  - See [textlink="Other Medications" link="CMUGuideMedsOther"] for doses and reagent details.
+  - Cryoxadone treats suffocation and blood loss; Aloxadone treats burns; Traumoxadone treats brute damage; Urishoxadone treats poison and radiation; Doxarubixadone treats cellular and organ damage; Necrosol repairs fractures, restores blood and regenerates missing native limbs; Opporozidone reverses rot in dead patients.
+  - See [textlink="Cryogenic Medicines and Recipes" link="CMUGuideMedsCryogenic"] for mixing ratios, precursor recipes, heating requirements and treatment details.
 </Document>

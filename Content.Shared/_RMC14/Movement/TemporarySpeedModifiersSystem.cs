@@ -1,5 +1,6 @@
 using Content.Shared._RMC14.Slow;
 using Content.Shared.CMU14.Chemistry.Effects;
+using Content.Shared.CMU14.Movement; // CMU14
 using Content.Shared.Clothing;
 using Content.Shared.Movement.Components;
 using Content.Shared.Movement.Systems;
@@ -49,11 +50,14 @@ public sealed partial class TemporarySpeedModifiersSystem : EntitySystem
 
         // Modify the slowdown the clothing applies based on the wearers current movement speed.
         // Slowed entities get a reduced slow effect from clothing while fast entities get an increased slow effect.
-        var newModifier = 1 - (1 - args.SprintModifier) * (movement.CurrentSprintSpeed / movement.BaseSprintSpeed);
+        // CMU14: use the stored ratio directly; losing both legs makes current/base speed 0/0.
+        var speedModifier = float.IsFinite(movement.SprintSpeedModifier) ? movement.SprintSpeedModifier : 1f;
+        var newModifier = 1 - (1 - args.SprintModifier) * speedModifier;
         args.WalkModifier = newModifier;
         args.SprintModifier = newModifier;
     }
 
+    // CMU14 method: remove expired entries in place without changing refresh or prediction timing.
     public override void Update(float frameTime)
     {
         var time = _timing.CurTime;
@@ -61,22 +65,18 @@ public sealed partial class TemporarySpeedModifiersSystem : EntitySystem
 
         while (speedModsQuery.MoveNext(out var uid, out var speedModsComponent))
         {
-            var toRemove = new List<(TimeSpan ExpiresAt, float Walk, float Sprint)>();
-
-            foreach (var modifier in speedModsComponent.Modifiers)
+            var removed = false;
+            for (var i = speedModsComponent.Modifiers.Count - 1; i >= 0; i--)
             {
+                var modifier = speedModsComponent.Modifiers[i];
                 if (modifier.ExpiresAt > time)
                     continue;
 
-                toRemove.Add(modifier);
+                speedModsComponent.Modifiers.RemoveAt(i);
+                removed = true;
             }
 
-            foreach (var modifier in toRemove)
-            {
-                speedModsComponent.Modifiers.Remove(modifier);
-            }
-
-            if (toRemove.Count > 0)
+            if (removed)
                 Dirty(uid, speedModsComponent);
 
             if (speedModsComponent.Modifiers.Count <= 0)
@@ -98,6 +98,11 @@ public sealed partial class TemporarySpeedModifiersSystem : EntitySystem
             var chemical = new GetChemicalStunTimeMultiplierEvent();
             RaiseLocalEvent(entUid, ref chemical);
             var duration = modifier.Duration * MathF.Max(0f, chemical.Multiplier);
+            // CMU14 start - ARCH-12: incoming slow durations can be shortened (EW Joe Liturgy)
+            var slowDuration = new CMUGetSlowDurationMultiplierEvent();
+            RaiseLocalEvent(entUid, ref slowDuration);
+            duration *= MathF.Max(0f, slowDuration.Multiplier);
+            // CMU14 end
             if (duration <= TimeSpan.Zero)
                 continue;
 
@@ -121,7 +126,10 @@ public sealed partial class TemporarySpeedModifiersSystem : EntitySystem
     /// <returns>Null or a float representing the calculated speed multiplier</returns>
     public float? CalculateSpeedModifier(EntityUid uid, float modifier, MovementSpeedModifierComponent? movement = null)
     {
-        if (!Resolve(uid, ref movement) || movement.CurrentSprintSpeed == 0)
+        // CMU14: a refresh must be able to recover from invalid speed left by a previous slowdown.
+        if (!Resolve(uid, ref movement) ||
+            !float.IsFinite(movement.CurrentSprintSpeed) || movement.CurrentSprintSpeed <= 0 ||
+            !float.IsFinite(movement.BaseSprintSpeed) || movement.BaseSprintSpeed <= 0)
             return null;
 
         var currentSpeed = movement.CurrentSprintSpeed;

@@ -2,6 +2,7 @@ using System.Linq;
 using Content.Server.Voting;
 using Content.Shared._RMC14.Rules;
 using Content.Shared.CMU14.Threats;
+using Content.Shared.Maps;
 
 namespace Content.Server.CMU14.Round;
 
@@ -12,6 +13,11 @@ internal static class AuRoundSelectionRules
         return ContainsIgnoreCase(proto.WhitelistedGamemodes, gamemode);
     }
 
+    public static bool IsBlacklistedForGamemode(ThirdPartyPrototype proto, string? gamemode)
+    {
+        return gamemode != null && ContainsIgnoreCase(proto.BlacklistedGamemodes, gamemode);
+    }
+
     public static bool IsThirdPartyAllowed(
         ThirdPartyPrototype proto,
         string currentGamemode,
@@ -20,7 +26,7 @@ internal static class AuRoundSelectionRules
         string? opforPlatoon,
         int playerCount)
     {
-        if (ContainsIgnoreCase(proto.BlacklistedGamemodes, currentGamemode))
+        if (IsBlacklistedForGamemode(proto, currentGamemode))
             return false;
 
         if (proto.WhitelistedGamemodes.Count > 0 &&
@@ -49,6 +55,22 @@ internal static class AuRoundSelectionRules
             return false;
 
         return true;
+    }
+
+    /// <summary>
+    ///     Whether a planet can be voted at this population. Its game map's minPlayers/maxPlayers apply as well as the
+    ///     planet's own limits, where 0 means unset; mappers set the population lock on the game map.
+    /// </summary>
+    public static bool IsPlanetInPopulationRange(RMCPlanetMapPrototypeComponent planet, GameMapPrototype? map, int playerCount)
+    {
+        if ((planet.MinPlayers > 0 && playerCount < planet.MinPlayers) ||
+            (planet.MaxPlayers > 0 && playerCount > planet.MaxPlayers))
+        {
+            return false;
+        }
+
+        var players = (uint) Math.Max(0, playerCount);
+        return map == null || (players >= map.MinPlayers && players <= map.MaxPlayers);
     }
 
     public static VoteOptions BuildPlanetVoteOptions(

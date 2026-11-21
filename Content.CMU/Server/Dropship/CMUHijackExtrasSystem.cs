@@ -1,4 +1,5 @@
 using Content.Server.GameTicking;
+using Content.Server.CMU14.RoundStatistics;
 using Content.Server.Ghost;
 using Content.Server.Mind;
 using Content.Server.Popups;
@@ -65,6 +66,7 @@ public sealed partial class CMUHijackExtrasSystem : EntitySystem
     [Dependency] private PopupSystem _popup = default!;
     [Dependency] private RMCCameraShakeSystem _rmcCameraShake = default!;
     [Dependency] private RMCPlanetSystem _rmcPlanet = default!;
+    [Dependency] private CMURoundStatisticsSystem _roundStats = default!;
     [Dependency] private SharedTransformSystem _transform = default!;
     [Dependency] private SharedXenoHiveSystem _hive = default!;
     [Dependency] private CMUSharedZLevelsSystem _zLevels = default!;
@@ -119,12 +121,21 @@ public sealed partial class CMUHijackExtrasSystem : EntitySystem
             _destruction.DestroyEntity(structure);
         }
 
+        DestroyUnlimitedPlanetHiveCores(ev.Dropship);
+
         // Return stranded xenos to the burrowed queue before removing their bodies.
         var xenoAmount = 0;
         var originalXenos = new List<(EntityUid Uid, XenoComponent Xeno, TransformComponent Transform)>();
         var xenos = EntityQueryEnumerator<XenoComponent, MobStateComponent, TransformComponent>();
         while (xenos.MoveNext(out var xeno, out var comp, out _, out var xform))
+        {
             originalXenos.Add((xeno, comp, xform));
+
+            // Rejoining one player can choose another body before its turn in the cleanup loop.
+            if ((ev.Dropship == null || xform.GridUid != ev.Dropship) && _rmcPlanet.IsOnPlanetLevel(xform) &&
+                !_mobState.IsDead(xeno) && !HasComp<CMUWendigoLabMadeComponent>(xeno))
+                EnsureComp<BurrowedLarvaSpawnBlockedComponent>(xeno);
+        }
 
         // Rejoining can spawn a burrowed larva immediately. Only process the original bodies.
         foreach (var (xeno, comp, xform) in originalXenos)
@@ -294,6 +305,7 @@ public sealed partial class CMUHijackExtrasSystem : EntitySystem
         if (ev.Handled || HasActiveDistressRule() || _gameTicker.RunLevel != GameRunLevel.InRound)
             return;
 
+        _roundStats.RecordHijackDeclined();
         _gameTicker.EndRound(Loc.GetString("cmu-distress-signal-minorxenovictory-no-hijack"));
         ev.Handled = true;
     }
@@ -302,6 +314,27 @@ public sealed partial class CMUHijackExtrasSystem : EntitySystem
     {
         _hijackSongPlayed = false;
         _surgeFired = false;
+    }
+
+    /// <summary>
+    ///     Hive cores that aren't build-limited (pathogen blight cores can be raised again and again)
+    ///     never matched the limited-structure sweep, so they outlived every hijack.
+    /// </summary>
+    public void DestroyUnlimitedPlanetHiveCores(EntityUid? dropship)
+    {
+        var cores = EntityQueryEnumerator<HiveCoreComponent, TransformComponent>();
+        while (cores.MoveNext(out var core, out _, out var xform))
+        {
+            if (HasComp<HiveConstructionLimitedComponent>(core) ||
+                (dropship != null && xform.GridUid == dropship) ||
+                !_rmcPlanet.IsOnPlanetLevel(xform))
+            {
+                continue;
+            }
+
+            EnsureComp<HiveConstructionSuppressAnnouncementsComponent>(core);
+            _destruction.DestroyEntity(core);
+        }
     }
 
     private bool HasActiveDistressRule()
